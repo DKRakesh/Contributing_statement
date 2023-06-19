@@ -1,0 +1,1094 @@
+text,labels
+title,0
+OUTRAGEOUSLY LARGE NEURAL NETWORKS : THE SPARSELY - GATED MIXTURE - OF - EXPERTS LAYER,0
+abstract,0
+The capacity of a neural network to absorb information is limited by its number of parameters .,1
+"Conditional computation , where parts of the network are active on a per-example basis , has been proposed in theory as away of dramatically increasing model capacity without a proportional increase in computation .",1
+"In practice , however , there are significant algorithmic and performance challenges .",0
+"In this work , we address these challenges and finally realize the promise of conditional computation , achieving greater than 1000x improvements in model capacity with only minor losses in computational efficiency on modern GPU clusters .",0
+"We introduce a Sparsely - Gated Mixture - of - Experts layer ( MoE ) , consisting of up to thousands of feed - forward sub - networks .",0
+A trainable gating network determines a sparse combination of these experts to use for each example .,0
+"We apply the MoE to the tasks of language modeling and machine translation , where model capacity is critical for absorbing the vast quantities of knowledge available in the training corpora .",0
+We present model architectures in which a MoE with up to 137 billion parameters is applied convolutionally between stacked LSTM layers .,0
+"On large language modeling and machine translation benchmarks , these models achieve significantly better results than state - of - the - art at lower computational cost .",0
+* Equally major contributors Work done as a member of the Google Brain Residency program ( g.co/ brainresidency ),0
+INTRODUCTION AND RELATED WORK 1 .,0
+CONDITIONAL COMPUTATION,0
+Exploiting scale in both training data and model size has been central to the success of deep learning .,1
+"When datasets are sufficiently large , increasing the capacity ( number of parameters ) of neural networks can give much better prediction accuracy .",0
+"This has been shown in domains such as text , images , and audio .",0
+"For typical deep learning models , where the entire model is activated for every example , this leads to a roughly quadratic blow - up in training costs , as both the model size and the number of training examples increase .",0
+"Unfortunately , the advances in computing power and distributed computation fall short of meeting such demand .",0
+Various forms of conditional computation have been proposed as away to increase model capacity without a proportional increase in computational costs .,0
+"In these schemes , large parts of a network are active or inactive on a per-example basis .",0
+"The gating decisions maybe binary or sparse and continuous , stochastic or deterministic .",0
+Various forms of reinforcement learning and back - propagation are proposed for trarining the gating decisions .,0
+"While these ideas are promising in theory , no work to date has yet demonstrated massive improvements in model capacity , training time , or model quality .",0
+We blame this on a combination of the following challenges :,0
+"Modern computing devices , especially GPUs , are much faster at arithmetic than at branching .",0
+Most of the works above recognize this and propose turning on / off large chunks of the network with each gating decision .,0
+"Large batch sizes are critical for performance , as they amortize the costs of parameter transfers and updates .",0
+Conditional computation reduces the batch sizes for the conditionally active chunks of the network .,0
+Network bandwidth can be a bottleneck .,0
+A cluster of GPUs may have computational power thousands of times greater than the aggregate inter - device network bandwidth .,0
+"To be computationally efficient , the relative computational versus network demands of an algorithm must exceed this ratio .",0
+"Embedding layers , which can be seen as a form of conditional computation , are handicapped by this very problem .",0
+"Since the embeddings generally need to be sent across the network , the number of ( example , parameter ) interactions is limited by network bandwidth instead of computational capacity .",0
+"Depending on the scheme , loss terms maybe necessary to achieve the desired level of sparsity per-chunk and / or per example .",0
+use three such terms .,0
+These issues can affect both model quality and load - balancing .,0
+Model capacity is most critical for very large data sets .,0
+"The existing literature on conditional computation deals with relatively small image recognition data sets consisting of up to 600,000 images .",0
+"It is hard to imagine that the labels of these images provide a sufficient signal to adequately train a model with millions , let alone billions of parameters .",0
+"In this work , we for the first time address all of the above challenges and finally realize the promise of conditional computation .",0
+We obtain greater than 1000x improvements in model capacity with only minor losses in computational efficiency and significantly advance the state - of - the - art results on public language modeling and translation data sets .,0
+OUR APPROACH : THE SPARSELY - GATED MIXTURE - OF - EXPERTS LAYER,0
+Our approach to conditional computation is to introduce anew type of general purpose neural network component : a Sparsely - Gated Mixture - of - Experts Layer ( MoE ) .,1
+"The MoE consists of a number of experts , each a simple feed - forward neural network , and a trainable gating network which selects a sparse combination of the experts to process each input ( see ) .",1
+All parts of the network are trained jointly by back - propagation .,1
+"While the introduced technique is generic , in this paper we focus on language modeling and machine translation tasks , which are known to benefit from very large models .",0
+"In particular , we apply a MoE convolutionally between stacked LSTM layers , as in .",0
+"The MoE is called once for each position in the text , selecting a potentially different combination of experts at each position .",0
+The different experts tend to become highly specialized based on syntax and semantics ( see Appendix E ) .,0
+"On both language modeling and machine translation benchmarks , we improve on best published results at a fraction of the computational cost .",0
+RELATED WORK ON MIXTURES OF EXPERTS,0
+"Since its introduction more than two decades ago , the mixture - of - experts approach has been the subject of much research .",0
+"Different types of expert architectures hae been proposed such as SVMs , Gaussian Processes , Dirichlet Processes , and deep networks .",0
+"Other work has focused on different expert configurations such as a hierarchical structure , infinite numbers of experts , and adding experts sequentially .",0
+suggest an ensemble model in the format of mixture of experts for machine translation .,0
+The gating network is trained on a pre-trained ensemble NMT model .,0
+The works above concern top - level mixtures of experts .,0
+The mixture of experts is the whole model .,0
+introduce the idea of using multiple,0
+MoEs with their own gating networks as parts of a deep model .,0
+"It is intuitive that the latter approach is more powerful , since complex problems may contain many sub-problems each requiring different experts .",0
+"They also allude in their conclusion to the potential to introduce sparsity , turning MoEs into a vehicle for computational computation .",0
+Our work builds on this use of MoEs as a general purpose neural network component .,0
+"While uses two stacked MoEs allowing for two sets of gating decisions , our convolutional application of the MoE allows for different gating decisions at each position in the text .",0
+We also realize sparse gating and demonstrate its use as a practical way to massively increase model capacity .,0
+THE STRUCTURE OF THE MIXTURE - OF - EXPERTS LAYER,0
+"The Mixture - of - Experts ( MoE ) layer consists of a set of n "" expert networks "" E 1 , , E n , and a "" gating network "" G whose output is a sparse n-dimensional vector .",0
+shows an overview of the MoE module .,0
+"The experts are themselves neural networks , each with their own parameters .",0
+"Although in principle we only require that the experts accept the same sized inputs and produce the same - sized outputs , in our initial investigations in this paper , we restrict ourselves to the case where the models are feed - forward networks with identical architectures , but with separate parameters .",0
+Let us denote by G ( x ) and E i ( x ) the output of the gating network and the output of the i - th expert network fora given input x .,0
+The output y of the MoE module can be written as follows :,0
+We save computation based on the sparsity of the output of G ( x ) .,0
+"Wherever G (x ) i = 0 , we need not compute E i ( x ) .",0
+"In our experiments , we have up to thousands of experts , but only need to evaluate a handful of them for every example .",0
+"If the number of experts is very large , we can reduce the branching factor by using a two - level hierarchical MoE. Ina hierarchical MoE , a primary gating network chooses a sparse weighted combination of "" experts "" , each of which is itself a secondary mixture - of - experts with its own gating network .",0
+In the following we focus on ordinary MoEs .,0
+We provide more details on hierarchical MoEs in Appendix B.,0
+Our implementation is related to other models of conditional computation .,0
+A MoE whose experts are simple weight matrices is similar to the parameterized weight matrix proposed in .,0
+"A MoE whose experts have one hidden layer is similar to the block - wise dropout described in , where the dropped - out layer is sandwiched between fully - activated layers .",0
+GATING NETWORK,0
+Softmax Gating :,0
+A simple choice of non-sparse gating function is to multiply the input by a trainable weight matrix W g and then apply the Sof tmax function .,0
+Noisy Top - K,0
+Gating :,0
+We add two components to the Softmax gating network : sparsity and noise .,0
+"Before taking the softmax function , we add tunable Gaussian noise , then keep only the top k values , setting the rest to ??",0
+( which causes the corresponding gate values to equal 0 ) .,0
+"The sparsity serves to save computation , as described above .",0
+"While this form of sparsity creates some theoretically scary discontinuities in the output of gating function , we have not yet observed this to be a problem in practice .",0
+"The noise term helps with load balancing , as will be discussed in Appendix A .",0
+The amount of noise per component is controlled by a second trainable weight matrix W noise .,0
+Training the Gating Network,0
+"We train the gating network by simple back - propagation , along with the rest of the model .",0
+"If we choose k > 1 , the gate values for the top k experts have nonzero derivatives with respect to the weights of the gating network .",0
+This type of occasionally - sensitive behavior is described in with respect to noisy rectifiers .,0
+Gradients also backpropagate through the gating network to its inputs .,0
+Our method differs here from who use boolean gates and a REINFORCE - style approach to train the gating network .,0
+ADDRESSING PERFORMANCE,0
+CHALLENGES,0
+THE SHRINKING BATCH PROBLEM,0
+"On modern CPUs and GPUs , large batch sizes are necessary for computational efficiency , so as to amortize the overhead of parameter loads and updates .",0
+"If the gating network chooses k out of n experts for each example , then fora batch of b examples , each expert receives a much smaller batch of approximately kb n b examples .",0
+This causes a naive MoE implementation to become very inefficient as the number of experts increases .,0
+The solution to this shrinking batch problem is to make the original batch size as large as possible .,0
+"However , batch size tends to be limited by the memory necessary to store activations between the forwards and backwards passes .",0
+We propose the following techniques for increasing the batch size :,0
+Mixing Data Parallelism and Model Parallelism :,0
+"Ina conventional distributed training setting , multiple copies of the model on different devices asynchronously process distinct batches of data , and parameters are synchronized through a set of parameter servers .",0
+"In our technique , these different batches run synchronously so that they can be combined for the MoE layer .",0
+"We distribute the standard layers of the model and the gating network according to conventional data - parallel schemes , but keep only one shared copy of each expert .",0
+Each expert in the MoE layer receives a combined batch consisting of the relevant examples from all of the data - parallel input batches .,0
+The same set of devices function as data - parallel replicas ( for the standard layers and the gating networks ) and as model - parallel shards ( each hosting a subset of the experts ) .,0
+"If the model is distributed over d devices , and each device processes a batch of size b , each expert receives a batch of approximately kbd n examples .",0
+"Thus , we achieve a factor of d improvement inexpert batch size .",0
+"In the case of a hierarchical MoE ( Section B ) , the primary gating network employs data parallelism , and the secondary MoEs employ model parallelism .",0
+Each secondary MoE resides on one device .,0
+This technique allows us to increase the number of experts ( and hence the number of parameters ) by proportionally increasing the number of devices in the training cluster .,0
+"The total batch size increases , keeping the batch size per expert constant .",0
+"The memory and bandwidth requirements per device also remain constant , as do the step times , as does the amount of time necessary to process a number of training examples equal to the number of parameters in the model .",0
+It is our goal to train a trillionparameter model on a trillion - word corpus .,0
+"We have not scaled our systems this far as of the writing of this paper , but it should be possible by adding more hardware .",0
+Taking Advantage of Convolutionality :,0
+"In our language models , we apply the same MoE to each time step of the previous layer .",0
+"If we wait for the previous layer to finish , we can apply the MoE to all the time steps together as one big batch .",0
+Doing so increases the size of the input batch to the MoE layer by a factor of the number of unrolled time steps .,0
+Increasing Batch Size fora,0
+Recurrent MoE :,0
+We suspect that even more powerful models may involve applying a MoE recurrently .,0
+"For example , the weight matrices of a LSTM or other RNN could be replaced by a MoE. Sadly , such models break the convolutional trick from the last paragraph , since the input to the MoE atone timestep depends on the output of the MoE at the previous timestep .",0
+"Gruslys et al . ( 2016 ) describe a technique for drastically reducing the number of stored activations in an unrolled RNN , at the cost of recomputing forward activations .",0
+This would allow fora large increase in batch size .,0
+NETWORK BANDWIDTH,0
+Another major performance concern in distributed computing is network bandwidth .,0
+"Since the experts are stationary ( see above ) and the number of gating parameters is small , most of the communication involves sending the inputs and outputs of the experts across the network .",0
+"To maintain computational efficiency , the ratio of an expert 's computation to the size of its input and output must exceed the ratio of computational to network capacity of the computing device .",0
+"For GPUs , this maybe thousands to one .",0
+"In our experiments , we use experts with one hidden layer containing thousands of RELU - activated units .",0
+"Since the weight matrices in the expert have sizes input_sizehidden_size and hidden_size output_size , the ratio of computation to input and output is equal to the size of the hidden layer .",0
+"Conveniently , we can increase computational efficiency simply by using a larger hidden layer , or more hidden layers .",0
+BALANCING EXPERT UTILIZATION,0
+We have observed that the gating network tends to converge to a state where it always produces large weights for the same few experts .,0
+"This imbalance is self - reinforcing , as the favored experts are trained more rapidly and thus are selected even more by the gating network .",0
+"describe the same phenomenon , and use a hard constraint at the beginning of training to avoid this local minimum .",0
+include a soft constraint on the batch - wise average of each gate .,0
+We take a soft constraint approach .,0
+We define the importance of an expert relative to a batch of training examples to be the batchwise sum of the gate values for that expert .,0
+"We define an additional loss L importance , which is added to the overall loss function for the model .",0
+"This loss is equal to the square of the coefficient of variation of the set of importance values , multiplied by a hand - tuned scaling factor w importance .",0
+This additional loss encourages all experts to have equal importance .,0
+L importance ( X ) = w importance CV ( Importance ( X ) ),0
+2 . The number of parameters in the LSTM layers of these models vary from 2 million to 151 million .,0
+"Quality increases greatly with parameter count , as do computational costs .",0
+Results for these models form the top line of - right .,0
+MoE Models :,0
+Our models consist of two stacked LSTM layers with a MoE layer between them ( see ) .,0
+We vary the sizes of the layers and the number of experts .,0
+"For full details on model architecture , training regimen , additional baselines and results , see Appendix C .",0
+The results of these models are shown in - left .,0
+"The model with 4 always - active experts performed ( unsurprisingly ) similarly to the computationally - matched baseline models , while the largest of the models ( 4096 experts ) achieved an impressive 24 % lower perplexity on the test set .",0
+"Varied Computation , High Capacity :",0
+"In addition to the largest model from the previous section , we trained two more MoE models with similarly high capacity ( 4 billion parameters ) , but higher computation budgets .",0
+"These models had larger LSTMs , and fewer but larger and experts .",0
+Details can be found in Appendix C.2 .,0
+Results of these three models form the bottom line of - right .,0
+compares the results of these models to the best previously - published result on this dataset .,0
+"Even the fastest of these models beats the best published result ( when controlling for the number of training epochs ) , despite requiring only 6 % of the computation .",0
+Computational,0
+Efficiency : We trained our models using TensorFlow on clusters containing 16 - 32 Tesla K40 GPUs .,0
+"For each of our models , we determine computational efficiency in TFLOPS / GPU by dividing the number of floating point operations required to process one training batch by the observed step time and the number of GPUs in the cluster .",0
+"The operation counts used here are higher than the ones we report in our ops / timestep numbers in that we include the backwards pass , we include the importance - sampling - based training of the softmax layer , and we count a multiply - and - add as two separate operations .",0
+"For all of our MoE models , the floating point operations involved in the experts represent between 37 % and 46 % of the total .",0
+"For our baseline models wtih no MoE , observed computational efficiency ranged from 1.07 - 1.29 TFLOPS / GPU .",0
+"For our low-computation MoE models , computation efficiency ranged from 0.74 - 0.90 TFLOPS / GPU , except for the 4 - expert model which did not make full use of the available parallelism .",0
+"Our highest - computation MoE model was more efficient at 1.56 TFLOPS / GPU , likely due to the larger matrices .",0
+These numbers represent a significant fraction of the theoretical maximum of 4.29 TFLOPS / GPU claimed by NVIDIA .,0
+"Detailed results are in Appendix C , .",0
+"On the 1 - billion - word corpus , adding additional capacity seems to produce diminishing returns as the number of parameters in the MoE layer exceeds 1 billion , as can be seen in - left .",0
+"We hypothesized that fora larger training set , even higher capacities would produce significant quality improvements .",0
+100 BILLION WORD GOOGLE NEWS CORPUS,0
+"We constructed a similar training set consisting of shuffled unique sentences from Google 's internal news corpus , totalling roughly 100 billion words .",0
+"Similarly to the previous section , we tested a series of models with similar computational costs of about 8 million ops / timestep .",0
+"In addition to a baseline LSTM model , we trained models augmented with MoE layers containing 32 , experts .",1
+This corresponds to up to 137 billion parameters in the MoE layer .,0
+"Details on architecture , training , and results are given in Appendix D.",0
+Results : shows test perplexity as a function of capacity after training on 10 billion words ( top line ) and 100 billion words ( bottom line ) .,0
+"When training over the full 100 billion words , test perplexity improves significantly up to 65536 experts ( 68 billion parameters ) , dropping 39 % lower than the computationally matched baseline , but degrades at 131072 experts , possibly a result of too much sparsity .",1
+The widening gap between the two lines demonstrates ( unsurprisingly ) that increased model capacity helps more on larger training sets .,0
+"Even at 65536 experts ( 99.994 % layer sparsity ) , computational efficiency for the model stays at a respectable 0.72 TFLOPS / GPU .",0
+MACHINE TRANSLATION ( SINGLE LANGUAGE PAIR ),0
+Model Architecture :,0
+Our model was a modified version of the GNMT model described in .,1
+"To reduce computation , we decreased the number of LSTM layers in the encoder and decoder from 9 and 8 to 3 and 2 respectively .",1
+We inserted MoE layers in both the encoder ( between layers 2 and 3 ) and the decoder ( between layers 1 and 2 ) .,1
+"Each MoE layer contained up to 2048 experts each with about two million parameters , adding a total of about 8 billion parameters to the models .",1
+"Further details on model architecture , testing procedure and results can be found in Appendix E.",0
+Datasets :,0
+We benchmarked our method on the WMT ' 14 En? Fr and En ?,0
+"De corpora , whose training sets have 36M sentence pairs and 5 M sentence pairs , respectively .",0
+"The experimental protocols were also similar to those in : newstest2014 was used as the test set to compare against previous work , while the combination of newstest2012 and newstest2013 was used as the development set .",0
+We also tested the same model on a Google 's Production English to French data . 2.79 39.22 214M 278M 6 days/96 k 80s GNMT+RL 2.96 39.92 214M 278M 6 days/96 k80s PBMT 37.0 LSTM ( 6-layer ) 31.5 LSTM ( 6-layer + PosUnk ) 33.1 DeepAtt 37.7 DeepAtt+PosUnk 39.2 5.25 24.91 214M 278M 1 day/96 k80s GNMT + RL 8.08 24.66 214M 278M 1 day/96 k80s PBMT 20.7 DeepAtt 20.6,0
+"Results : show the results of our largest models , compared with published results .",0
+Our approach achieved BLEU scores of 40.56 and 26.03 on the WMT ' 14 En?Fr and En ? De benchmarks .,1
+"As our models did not use RL refinement , these results constitute significant gains of 1.34 and 1.12 BLEU score on top of the strong baselines in .",0
+The perplexity scores are also better .,0
+2,0
+"On the Google Production dataset , our model achieved 1.01 higher test BLEU score even after training for only one sixth of the time .",1
+MULTILINGUAL MACHINE TRANSLATION,0
+Results :,0
+"Results for the single - pair GNMT models , the multilingual GNMT model and the multilingual MoE model are given in .",0
+The MoE model achieves 19 % lower perplexity on the dev set than the multilingual GNMT model .,1
+"On BLEU score , the MoE model significantly beats the multilingual GNMT model on 11 of the 12 language pairs ( by as much as 5.84 points ) , and even beats the monolingual GNMT models on 8 of 12 language pairs .",1
+The poor performance on English ?,0
+"Korean seems to be a result of severe overtraining , as for the rarer language pairs a small number of real examples were highly oversampled in the training corpus .",0
+CONCLUSION,0
+title,0
+Robust Lexical Features for Improved Neural Network Named - Entity Recognition,1
+abstract,0
+Neural network approaches to Named - Entity Recognition reduce the need for carefully handcrafted features .,1
+"While some features do remain in state - of - the - art systems , lexical features have been mostly discarded , with the exception of gazetteers .",0
+"In this work , we show that this is unfair : lexical features are actually quite useful .",0
+We propose to embed words and entity types into a lowdimensional vector space we train from annotated data produced by distant supervision thanks to Wikipedia .,0
+"From this , we compute - offline - a feature vector representing each word .",0
+"When used with a vanilla recurrent neural network model , this representation yields substantial improvements .",0
+"We establish anew state - of - the - art F1 score of 87.95 on ONTONOTES 5.0 , while matching state - of - the - art performance with a F 1 score of 91.73 on the over - studied CONLL - 2003 dataset .",0
+This work is licensed under a Creative Commons Attribution 4.0 International License .,0
+License details :,0
+Introduction,0
+Named - Entity Recognition ( NER ) is the task of identifying textual mentions and classifying them into a predefined set of types .,1
+"Various approaches have been proposed to tackle the task , from hand - crafted feature - based machine learning models like conditional random fields and perceptron , to deep neural models .",0
+"Word representations , also known as word embeddings , area key element for multiple NLP tasks including NER .",0
+"Due to the small amount of named - entity annotated data , embeddings are used to extend , rather than replace , hand - crafted features in order to obtain state - of - the - art performance .",0
+Recent studies have explored methods for supplying deep sequential taggers with complementary features to standard embeddings .,0
+and tested special embeddings extracted from a neural language model ( LM ) trained on a large corpus .,0
+LM embeddings capture context - dependent aspects of word meaning using future ( forward LM ) and previous ( backward LM ) context words .,0
+"When this information is added to standard features , it leads to significant improvements in NER .",0
+"Also , showed that external knowledge resources ( namely gazetteers ) are crucial to NER performance .",0
+Gazetteer features encode the presence of word n-grams in predefined lists of NEs .,0
+"In this work , we discuss some of the limitations of gazetteer features and propose an alternative lexical representation which is trained offline and that can be added to any neural NER system .",1
+"Ina nutshell , we embed words and entity types into a joint vector space by leveraging WiFiNE , a ressource which automatically annotates mentions in Wikipedia with 120 entity types .",1
+"From this vector space , we compute for each word a 120 - dimensional vector , where each dimension encodes the similarity of the word with an entity type .",0
+"We call this vector an LS representation , for Lexical Similarity .",0
+"When included in a vanilla LSTM - CRF NER model , LS representations lead to significant gains .",0
+"We establish anew state - of - the - art F 1 score of 87.95 on ONTONOTES 5.0 , while matching state - of - the - art performance on the over - studied In the rest of this paper , we motivate our work in Section 2 .",0
+We describe how we compute LS vectors in Section 3 .,0
+"We present our system in Section 4 and report results in Section 5 . In Section 6 , we discuss related works before concluding in Section 7 .",0
+Motivation,0
+Gazetteers are lists of entities that are associated with specific NE categories .,0
+"They are widely used as a feature source in NER , and have been successfully included in feature - based models .",0
+"Typically , lists of entities are compiled from structured data sources such as DBpedia or Freebase .",0
+"The surface form of the title of a Wikipedia article , as well as aliases and redirects are mapped to an entity type using the object type attribute of the related DBpedia ( or Freebase ) page .",0
+"use this methodology to compile 30 lists of fine - grained entity types extracted from Wikipedia , while Chiu and Nichols ( 2016 ) create 4 gazetteers that map to CoNLL categories ( PER , LOC , ORG and MISC ) .",0
+"Despite their importance , gazetteer - based features suffer from a number of limitations .",0
+Binary representation .,0
+Gazetteer features encode only the presence of an n-gram in each list and omit its relative frequency .,0
+"For example , the word "" France "" can be used as a person , an organization , or a location , while it likely refers to the country most of the time .",0
+Binary features can not capture this preference .,0
+Generation .,0
+"At test time , we need to match every n-gram ( up to the length of the longest lexicon entry ) in a sentence against entries in the lexicons , which is time consuming .",0
+"In their work , Chiu and Nichols ( 2016 ) use 4 lists that count over 2.3 M entries .",0
+Non-entity words .,0
+"Gazetteer features do not capture signal from non-entity words , while earlier feature - based models strived to encode that some words ( or n-grams ) trigger specific entity types .",0
+"For instance , words such as "" eat "" , "" directed "" or "" born "" are words that typically appear after a mention of type PER .",0
+"To overcome those limitations , we propose an alternative approach where we embed annotations mined from Wikipedia into a vector space from which we compute a feature vector that represent words .",0
+This vector compactly and efficiently encodes both gazetteer and lexical information .,0
+"Note that attest time , we only have to feed our model with this feature vector , which is efficient .",0
+Our Method,0
+Embedding Words and Entity Types,0
+Turning Wikipedia into a corpus of named - entities annotated with types is a task that received continuous attention over the years .,0
+It consists mainly in exploiting the hyperlink structure of Wikipedia in order to detect entity mentions .,0
+"Then , structured data from a knowledge base ( for instance Freebase ) are used to map hyperlinks to entity types .",0
+"Because the number of anchored strings in Wikipedia is no more than 3 % of the text tokens , proposed to augment Wikipedia articles with mentions unmarked in Wikipedia , thanks to a mix of heuristics that benefit the Wikipedia structure , as well as a coreference resolution system adapted specifically to Wikipedia .",0
+"The authors applied their approach on English Wikipedia and produce coarse ( 4 classes ) and finegrained ( 120 labels ) named- entity annotations , leading to WiNER and WiFiNE .",0
+"In this work , we adopt WiFiNE which is publicly available at http://rali.iro.umontreal.ca/rali/en/wifiner-wikipedia-for-et as our source of annotations .",0
+Each entity mention is mapped ( via it s Freebase object type attribute ) to a pre-defined set of 120 entity types .,0
+Types are stored in a 2 - level hierarchical structure ( e.g. / person and / person / musician ) .,0
+"The corpus consist of 3.2 M Wikipedia articles , comprising 1.3G tokens that we annotated with 157.4 M named - entity mentions and their types .",0
+We used this very large quantity of automatically annotated data for jointly embedding words and entity types into the same low - dimensional space .,0
+The key idea consists in learning an embedding for each entity type using its surrounding words .,0
+"For instance , the embedding for / product / software will be trained using context words that surround all entities that were ( automatically ) labelled as / product / software in Wikipedia .",0
+"In practice , we found that simply concatenating a sentence ( v1 ) with its annotated version ( v 2 ) , as illustrated in , offers a simple but efficient way of combining words and entity types so that embeddings can make good use of them .",0
+We use the FastText toolkit to learn the uncased embeddings for both words and entity types .,0
+"We train a skipgram model to learn 100 - dimensional vectors with a minimum word frequency cutoff of 5 , and a window size of 5 .",0
+This configuration ( recommended by the authors ) performs the best in the experiments described in Section 5 .,0
+"Since FastText learns representations of character ngrams , it has the ability to produce vectors for unknown words .",0
+"For visualization proposes , we only plot single - word mentions that were annotated in WiFiNE with one of those 6 types .",0
+Words were randomly and proportionally sampled according to the frequency of each entity type .,0
+"In addition , words have the color associated with the most frequent type they were annotated within WiFiNE .",0
+We observe that mentions often annotated by a given type in our resource tend to cluster around this entity type .,0
+"For instance , "" firefox "" is close to the type / product / software , while "" enzyme "" is close to the / biology entity type .",0
+We also notice that words that are labelled with different types tend to appear between types they were annotated with .,0
+"For instance , "" gpx2 "" , which is used both as a software and as a gene , has it s embedding in between / product / software and / biology .",0
+"We inspected some of the words plotted in , and found that "" jrun "" and "" xp "" are incorrectly labelled as / product / weapon in WiFiNE .",0
+"But since these words are seen in a software context , their embeddings are closer to the / product / software embedding than the / product / weapon one .",0
+"We feel this tolerance to noise is a desirable feature , one that hopefully allows a more efficient use of distant supervision .",0
+"Last , we also observe the tendency of rare words to cluster around their entity type .",0
+"For instance , "" iota "" and "" x.org "" are embedded near their respective types , despite the fact that they appear less than 30 times in the version of Wikipedia used to compile WiFiNE .",0
+LS Representation,0
+"This joint vector space only serves the purpose of associating to each word a LS representation , that is , a 120 - dimensional vector where the ith coefficient is a value in the [ ? 1 , + 1 ] interval , equal to the cosine similarity 1 between the word embedding and the embedding of the ith entity type ( we have 120 types ) .",0
+Word,0
+Entity .,0
+shows the topmost similar entity types for proper names ( left column ) and common words ( right column ) .,0
+We observe that ambiguous mentions ( those annotated with several types ) are adequately handled .,0
+"For instance , the LS representation of the word "" hilton "" encodes that it more often refers to a hotel or a restaurant than to an actress .",0
+"Also , we observe that entity words that are either not or rarely annotated in WiFiNE are still adequately associated with their right type .",0
+"For instance , "" dammstadt "" , which appears only 5 times in WiFiNE , and which refers to the Damm city in Germany , is most similar to / location / city and / location / railway .",0
+"Interestingly , this mention does not have its page in English Wikipedia .",0
+"Furthermore , we observe that non-entity context words have a strong similarity to types they precede or succeed .",0
+"For instance the verb "" directed "" is very close to / person / director , an entity type that usually precedes it , and to / art / film , that usually follows it .",0
+"Likewise , the preposition "" in "" is near / date and / location / city , which frequently follow "" in "" .",0
+Strength of the LS Representation,0
+"To summarize , we propose a compact lexical representation which is computed offline , therefore incurring no computation burden attest time",0
+"This representation encodes the preference of an entity - mention word fora given type , an information out of reach of binary gazetteer features .",0
+It also lends itself nicely to the inclusion of lexical features that have been successfully used in earlier feature - based systems .,0
+"Also , because entity types are well represented in WiFiNE , their embeddings are robust :",0
+Our representation does accommodate unfrequent words and seems tolerant to the inherent noise of distant supervision .,0
+Our NER System,0
+"In order to test the efficiency of our lexical feature representation , we implemented a state - of - the - art NER system we now describe .",0
+Bi-LSTM- CRF,0
+Model,0
+"We adopt the popular Bi - LSTM - CRF architecture , a de facto baseline in many sequential tagging tasks .",0
+Features,0
+"In addition to the LS vector , we incorporate publicly available pre-trained embeddings , as well as character - level , and capitalization features .",0
+Those features have been shown to be crucial for stateof - the - art performance .,0
+Word Embeddings,0
+"We experimented with several publicly available word embeddings , such as Senna , Word2 Vec , GloVe , and SSKIP .",0
+We find that the latter performs the best in our experiments .,0
+SSKIP embeddings are 100 - dimensional case sensitive vectors that where trained using a n-skip - gram model on 42B tokens .,0
+"These embeddings were previously used by , who report good performance on CONLL , and state - of - the - art results on ONTONOTES respectively .",0
+Note that these pre-trained embeddings are adjusted during training .,0
+Character Embeddings,0
+"Following , we use a forward and a backward LSTM to derive a representation of each word from its characters ( right part of .",0
+"A character lookup table is randomly initialized , then trained at the same time as the Bi - LSTM model sketched in Section 4.1 .",0
+Capitalization Features,0
+"Similarly to previous works , we use capitalization features for characterizing certain categories of capitalization patterns : all Upper , allLower , upperFirst , upperNotFirst , numeric or noAlphaNum .",0
+"We define a random lookup table for these features , and learn its parameters during training .",0
+LS Vectors,0
+"Contrarily to previous features , lexical vectors are computed offline and are not adjusted during training .",0
+"We found useful in practice to apply a MinMax scaler in the range [ ? 1 , + 1 ] to each LS vector we computed ; thus , [.. , 0.095 , .. , 0.20 , .. , 0.76 , .. ] becomes [.. , ? 1 , .. , ? 0.67 , .. , 1 , ..].",0
+Experiments,0
+Data and Evaluation,0
+We consider two well - established NER benchmarks :,0
+CONLL-2003 and ONTONOTES 5.0 . provides an overview of the two datasets .,0
+"As we can see , ONTONOTES is much larger .",0
+"For both datasets , we convert the IOB encoding to BILOU , since found the latter to perform better .",0
+"In keeping with others , we report mention - level F 1 score using the conlleval script 2 .",0
+The ) is a well known collection of Reuters newswire articles that contains a large portion of sports news .,0
+"It is annotated with four entity types : Person ( PER ) , Location ( LOC ) , Organization ( ORG ) and Miscellaneous ( MISC ) .",0
+"The four entity types are fairly evenly distributed , and the train / dev / test datasets present a similar type distribution. , magazine ( 120 k ) , newswire ( 625 k ) , and web data ( 300 k ) .",0
+"This dataset is annotated with 18 entity types , and is much larger than CONLL .",0
+"Following previous researches , we use the official train / dev / test split of the CoNLL - 2012 shared task .",0
+"Also , we exclude ( both during training and testing ) the New Testaments portion as it does not contain gold NE annotations .",0
+Training and Implementation,0
+Training is carried out by mini-batch stochastic gradient descent ( SGD ) with a momentum of 0.9 and a gradient clipping of 5.0 .,1
+"The mini-batch is 10 for both datasets , and learning rates are 0.009 and 0.013 for CONLL and ONTONOTES respectively .",1
+"More sophisticated optimization algorithms such as AdaDelta or Adam ( Kingma and Ba , 2014 ) converge faster , but none outperformed SGD with exponential learning rate decay in our experiments .",0
+Our system uses a single Bi - LSTM layer at the word level whose hidden dimensions are set to 128 and 256 for CONLL and ONTONOTES respectively .,0
+"For both models , the character embedding size was set to 25 , and the hidden dimension of the forward and backward character LSTMs are set to 50 .",0
+"To mitigate overfitting , we apply a dropout mask with a probability of 0.5 on the input and output vectors of the Bi - LSTM layer .",0
+"For both datasets , we set the dimension of capitalization embeddings to 25 and trained the models up to 50 epochs .",0
+"We tuned the hyper - parameters by grid search , and used early stopping based on the performance on the development set .",0
+"We varied dropout . 65 ] ) , hidden units ) , capitalization ) and char ) embedding dimensions , learning rate ( [ 0.001 , 0.015 ] by step 0.002 ) , and optimization algorithms and fixed the other hyper - parameters .",1
+"We implemented our system using the Tensorflow library , and ran our models on a GeForce GTX TITAN Xp GPU .",1
+Training requires about 2.5 hours for CONLL and 8 hours for ONTONOTES .,0
+shows the development set performance of our final models on each dataset compared to the work of .,0
+"The authors use an architecture similar to ours , but use a binary gazetteer feature set , while we use our LS representation .",0
+"Since our systems involve random initialization , we report the mean as well as the standard deviation over five runs .",0
+"The improvements yielded by our model on the CONLL dataset are significant although modest , while those observed on ONTONOTES are more substantial .",0
+We also observe a lower variance of our system over the 5 runs .,0
+"First , we observe that our model significantly outperforms models that use extensive sets of handcrafted features ) as well as the system of Standard deviation on the test set is reported in 2015 ) that uses NE and Entity Linking annotations to jointly optimize the performance on both tasks .",1
+"Second , our model outperforms as well other NN models that only use standard word embeddings , which indicates that our lexical feature vector is complementary to standard word embeddings .",1
+"Third , our system matches state - of - the - art performances of models that use either more complex architectures or more elaborate features .",1
+use three layers of stacked residual RNN ( Bi - LSTM ) with bias decoding .,0
+Our model is much simpler and faster .,0
+They report a performance of 90.43 when using an architecture similar to ours .,0
+The two systems that have slightly higher F 1 scores on the CONLL dataset both use embeddings obtained from a forward and a backward Language Model trained on the One Billion Word Benchmark .,0
+"They report gains between 0.8 and 1.2 points by using such LM embeddings , which suggests that LS vectors are indeed efficient .",0
+"Unfortunately , due to time and resource constraints , 4 we were notable to measure whether both features complement each other .",0
+This is left for future investigations .,0
+reports the F 1 score of our system compared to the performance reported by others on the ONTONOTES test set .,0
+"To the best of our knowledge , we surpass previously reported F 1 scores on this dataset .",0
+"In particular , our system significantly outperforms the Bi - LSTM - CNN - CRF models of ( Chiu and Nichols , 2016 ) and by an absolute gain of 1.68 and 0.96 points respectively .",1
+"Less surprisingly , it surpasses systems with hand - crafted features , including that use gazetteers , and the system of which uses coreference annotation in ONTONOTES to jointly model NER , entity linking , and coreference resolution tasks .",1
+Results on the Development Set,0
+CONLL,0
+Results on CONLL,0
+Results on ONTONOTES,0
+Model,0
+We also observe that models that use both feature sets significantly outperform other configurations .,1
+"To confirm that the gains came from our feature vector and not from increasing the number of hidden units , we tested several SSKIP models by increasing the LSTM hidden layer dimension so that number of parameters is the same as the model with LS vectors .",0
+"We observed a degradation of performance on both datasets , mostly due to overfitting on the training set .",0
+"From those results , we conclude that our lexical representation and the SSKIP one are complementary .",0
+Ablation Results,0
+"In this experiment , we directly compare the LS representation with the SSKIP word - embedding feature set .",0
+"In order to maintain a high level of performance , both character and capitalization features are used in all configurations .",0
+"We want to point out that LS vectors are not adapted during training , contrarily to the SSKIP embeddings .",0
+"Similarly to Section 5.3 , we report in , for each feature configuration , the average F 1 score as well as the standard deviation over five runs .",0
+"We observe that on both CONLL and ONTONOTES , the SSKIP model outperforms our feature vector approach by 0.65 F1 points on average .",1
+"The difference is not has high as we first expected , especially since the SSKIP model is adjusted during training , while our representation is not .",0
+"Still , LS vectors seem to encode a large portion of the information needed to model the NER task .",0
+"Also , it is worth mentioning that our embeddings are trained on 1.3B words compared to 42B for SSKIP .",0
+Related Works,0
+Conclusion and Future Work,0
+title,0
+Unsupervised Neural Machine Translation with Weight Sharing,1
+abstract,0
+Unsupervised neural machine translation ( NMT ) is a recently proposed approach for machine translation which aims to train the model without using any labeled data .,1
+"The models proposed for unsupervised NMT often use only one shared encoder to map the pairs of sentences from different languages to a shared - latent space , which is weak in keeping the unique and internal characteristics of each language , such as the style , terminology , and sentence structure .",1
+"To address this issue , we introduce an extension by utilizing two independent encoders but sharing some partial weights which are responsible for extracting high - level representations of the input sentences .",0
+"Besides , two different generative adversarial networks ( GANs ) , namely the local GAN and global GAN , are proposed to enhance the cross - language translation .",0
+"With this new approach , we achieve significant improvements on English - German , English - French and Chinese - to - English translation tasks .",0
+Introduction,0
+"Neural machine translation , directly applying a single neural network to transform the source sentence into the target sentence , has now reached impressive performance .",0
+The NMT typically consists of two sub neural networks .,0
+"The encoder network reads and encodes the source sentence into a 1 Feng Wang is the corresponding author of this paper context vector , and the decoder network generates the target sentence iteratively based on the context vector .",0
+NMT can be studied in supervised and unsupervised learning settings .,0
+"In the supervised setting , bilingual corpora is available for training the NMT model .",0
+"In the unsupervised setting , we only have two independent monolingual corpora with one for each language and there is no bilingual training example to provide alignment information for the two languages .",0
+"Due to lack of alignment information , the unsupervised NMT is considered more challenging .",0
+"However , this task is very promising , since the monolingual corpora is usually easy to be collected .",0
+"Motivated by recent success in unsupervised cross - lingual embeddings , the models proposed for unsupervised NMT often assume that a pair of sentences from two different languages can be mapped to a same latent representation in a shared - latent space .",0
+"Following this assumption , use a single encoder and a single decoder for both the source and target languages .",0
+"The encoder and decoder , acting as a standard auto - encoder ( AE ) , are trained to reconstruct the inputs .",0
+And utilize a shared encoder but two independent decoders .,0
+"With some good performance , they share a glaring defect , i.e. , only one encoder is shared by the source and target languages .",0
+"Although the shared encoder is vital for mapping sentences from different languages into the shared - latent space , it is weak in keeping the uniqueness and internal characteristics of each language , such as the style , terminology and sentence structure .",0
+"Since each language has its own characteristics , the source and target languages should be encoded and learned independently .",0
+"Therefore , we conjecture that the shared encoder maybe a factor limit - ing the potential translation performance .",0
+"In order to address this issue , we extend the encoder - shared model , i.e. , the model with one shared encoder , by leveraging two independent encoders with each for one language .",1
+"Similarly , two independent decoders are utilized .",1
+"For each language , the encoder and its corresponding decoder perform an AE , where the encoder generates the latent representations from the perturbed input sentences and the decoder reconstructs the sentences from the latent representations .",1
+"To map the latent representations from different languages to a shared - latent space , we propose the weightsharing constraint to the two AEs .",1
+"Specifically , we share the weights of the last few layers of two encoders that are responsible for extracting highlevel representations of input sentences .",0
+"Similarly , we share the weights of the first few layers of two decoders .",0
+"To enforce the shared - latent space , the word embeddings are used as a reinforced encoding component in our encoders .",0
+"For cross - language translation , we utilize the backtranslation following .",1
+"Additionally , two different generative adversarial networks ( GAN ) , namely the local and global GAN , are proposed to further improve the cross - language translation .",1
+"We utilize the local GAN to constrain the source and target latent representations to have the same distribution , whereby the encoder tries to fool a local discriminator which is simultaneously trained to distinguish the language of a given latent representation .",1
+"We apply the global GAN to finetune the corresponding generator , i.e. , the composition of the encoder and decoder of the other language , where a global discriminator is leveraged to guide the training of the generator by assessing how far the generated sentence is from the true data distribution 1 .",1
+"In summary , we mainly make the following contributions :",0
+"We propose the weight - sharing constraint to unsupervised NMT , enabling the model to utilize an independent encoder for each language .",0
+"To enforce the shared - latent space , we also propose the embedding - reinforced encoders and two different GANs for our model .",0
+We conduct extensive experiments on The code that we utilized to train and evaluate our models can be found at https://github.com/ZhenYangIACAS/unsupervised-NMT,0
+"English - German , English - French and Chinese - to - English translation tasks .",0
+Experimental results show that the proposed approach consistently achieves great success .,0
+"Last but not least , we introduce the directional self - attention to model temporal order information for the proposed model .",0
+Experimental results reveal that it deserves more efforts for researchers to investigate the temporal order information within self - attention layers of NMT .,0
+Related Work,0
+The Approach,0
+Model Architecture,0
+"The model architecture , as illustrated in figure 1 , is based on the AE and GAN .",0
+"It consists of seven sub networks : including two encoders Enc sand Enc t , two decoders Dec sand Dec t , the local discriminator D l , and the global discriminators D g 1 and D g 2 .",0
+"For the encoder and decoder , we follow the newly emerged Transformer .",0
+"Specifically , the encoder is composed of a stack of four identical layers",0
+2 .,0
+Each layer consists of a multi-head self - attention and a simple position - wise fully connected feed - forward network .,0
+The decoder is also composed of four identical layers .,0
+"In addition to the two sub-layers in each encoder layer , the decoder inserts a third sublayer , which performs multi-head attention over the output of the encoder stack .",0
+"For more details about the multi-head self - attention layer , we refer the reader to .",0
+We implement the local discriminator as a multi -layer perceptron and implement the global discriminator based on the convolutional neural network ( CNN ) .,0
+Several ways exist to interpret the roles of the sub networks are summarised in table,0
+1 .,0
+"The proposed system has several striking components , which are critical either for the system to be trained in an 2 The layer number is selected according to our preliminary experiment , which is presented in appendix A. unsupervised manner or for improving the translation performance .",0
+Networks,0
+Roles : Interpretation of the roles for the subnetworks in the proposed system .,0
+Directional self - attention,0
+"Compared to recurrent neural network , a disadvantage of the simple self - attention mechanism is that the temporal order information is lost .",0
+"Although the Transformer applies the positional encoding to the sequence before processed by the self - attention , how to model temporal order information within an attention is still an open question .",0
+"Following , we build the encoders in our model on the directional self - attention which utilizes the positional masks to encode temporal order information into attention output .",0
+"More concretely , two positional masks , namely the forward mask M f and backward mask Mb , are calculated as :",0
+"With the forward mask M f , the later token only makes attention connections to the early tokens in the sequence , and vice versa with the backward mask .",0
+"Similar to , we utilize a self - attention network to process the input sequence in forward direction .",0
+"The output of this layer is taken by an upper self - attention network as input , processed in the reverse direction .",0
+Weight sharing,0
+"Based on the shared - latent space assumption , we apply the weight sharing constraint to relate the two AEs .",0
+"Specifically , we share the weights of the last few layers of the Enc sand Enc t , which are responsible for extracting high - level representations of the input sentences .",0
+"Similarly , we also share the first few layers of the Dec sand Dec t , which are expected to decode high - level representations that are vital for reconstructing the input sentences .",0
+"Compared to which use the fully shared encoder , we only share partial weights for the encoders and decoders .",0
+"In the proposed model , the independent weights of the two encoders are expected to learn and encode the hidden features about the internal characteristics of each language , such as the terminology , style , and sentence structure .",0
+The shared weights are utilized to map the hidden features extracted by the independent weights to the shared - latent space .,0
+Embedding reinforced encoder,0
+We use pretrained cross - lingual embeddings in the encoders that are kept fixed during training .,0
+And the fixed embeddings are used as a reinforced encoding component in our encoder .,0
+"Formally , given the input sequence embedding vectors E = {e 1 , . . . , e t } and the initial output sequence of the encoder stack H = {h 1 , . . . , ht } , we compute H r as :",0
+"where H r is the final output sequence of the encoder which will be attended by the decoder ( In Transformer , H is the final output of the encoder ) , g is agate unit and computed as :",0
+"where W 1 , W 2 and bare trainable parameters and they are shared by the two encoders .",0
+The motivation behind is twofold .,0
+"Firstly , taking the fixed cross - lingual embedding as the other encoding component is helpful to reinforce the sharedlatent space .",0
+"Additionally , from the point of multichannel encoders , providing encoding components with different levels of composition enables the decoder to take pieces of source sentence at varying composition levels suiting its own linguistic structure .",0
+Unsupervised Training,0
+"Based on the architecture proposed above , we train the NMT model with the monolingual corpora only using the following four strategies :",0
+Denoising auto - encoding,0
+"Firstly , we train the two AEs to reconstruct their inputs respectively .",0
+"In this form , each encoder should learn to compose the embeddings of its corresponding language and each decoder is expected to learn to decompose this representation into its corresponding language .",0
+"Nevertheless , without any constraint , the AE quickly learns to merely copy every word one by one , without capturing any internal structure of the language involved .",0
+"To address this problem , we utilize the same strategy of denoising AE and add some noise to the input sentences .",0
+"To this end , we shuffle the input sentences randomly .",0
+"Specifically , we apply a random permutation ?",0
+"to the input sentence , verifying the condition :",0
+"where n is the length of the input sentence , steps is the global steps the model has been updated , k and s are the tunable parameters which can beset by users beforehand .",0
+"This way , the system needs to learn some useful structure of the involved languages to be able to recover the correct word order .",0
+"In practice , we set k = 2 and s = 100000 .",0
+Back - translation,0
+"In spite of denoising autoencoding , the training procedure still involves a single language at each time , without considering our final goal of mapping an input sentence from the source / target language to the target / source language .",0
+"For the cross language training , we utilize the back - translation approach for our unsupervised training procedure .",0
+Back - translation has shown its great effectiveness on improving NMT model with monolingual data and has been widely investigated by .,0
+"In our approach , given an input sentence in a given language , we apply the corresponding encoder and the decoder of the other language to translate it to the other language 3 .",0
+"By combining the translation with its original sentence , we get a pseudo - parallel corpus which is utilized to train the model to reconstruct the original sentence from its translation .",0
+Local GAN,0
+"Although the weight sharing constraint is vital for the shared - latent space assumption , it alone does not guarantee that the corresponding sentences in two languages will have the same or similar latent code .",0
+"To further enforce the shared - latent space , we train a discriminative neural network , referred to as the local discriminator , to classify between the encoding of source sentences and the encoding of target sentences .",0
+"The local discriminator , implemented as a multilayer perceptron with two hidden layers of size 256 , takes the output of the encoder , i.e. , H r calculated as equation 3 , as input , and produces a binary prediction about the language of the input sentence .",0
+The local discriminator is trained to predict the language by minimizing the following crossentropy loss :,0
+where ?,0
+"D l represents the parameters of the local discriminator and f ? {s , t}.",0
+The encoders are trained to fool the local discriminator :,0
+where ?,0
+Encs and ?,0
+Enct are the parameters of the two encoders .,0
+Global GAN,0
+"We apply the global GANs to fine tune the whole model so that the model is able to generate sentences undistinguishable from the true data , i.e. , sentences in the training corpus .",0
+"Different from the local GANs which updates the parameters of the encoders locally , the global GANs are utilized to update the whole parameters of the proposed model , including the parameters of encoders and decoders .",0
+The proposed model has two global GANs : GAN g 1 and GAN g 2 .,0
+"In GAN g 1 , the Enc t and Dec s act as the generator , which generates the sentencex t 4 from x t .",0
+"The D g 1 , implemented based on CNN , assesses whether the generated sentencex t is the true target - language sentence or the generated sentence .",0
+"The global discriminator aims to distinguish among the true sentences and generated sentences , and it is trained to minimize its classification error rate .",0
+"During training , the D g 1 feeds back its assessment to finetune the encoder Enc t and decoder Dec s .",0
+"Since the machine translation is a sequence generation problem , following , we leverage policy gradient reinforcement training to back - propagate the assessment .",0
+We apply a similar processing to GAN g2 ( The details about the architecture of the global discriminator and the training procedure of the global GANs can be seen in appendix B and C ) .,0
+There are two stages in the proposed unsupervised training .,0
+"In the first stage , we train the proposed model with denoising auto - encoding , backtranslation and the local GANs , until no improvement is achieved on the development set .",0
+"Specifically , we perform one batch of denoising autoencoding for the source and target languages , one batch of back - translation for the two languages , and another batch of local GAN for the two languages .",0
+"In the second stage , we fine tune the proposed model with the global GANs .",0
+Experiments and Results,0
+"We evaluate the proposed approach on English - German , English - French and Chinese - to - English translation tasks",0
+5 .,0
+"We firstly describe the datasets , pre-processing and model hyper - parameters we used , then we introduce the baseline systems , and finally we present our experimental results .",0
+Data Sets and Preprocessing,0
+"In English - German and English - French translation , we make our experiments comparable with previous work by using the datasets from the WMT 2014 and WMT 2016 shared tasks respectively .",0
+"For Chinese - to - English translation , we use the datasets from LDC , which has been widely utilized by previous works .",0
+"WMT14 English - French Similar to , we use the full training set of 36M sentence pairs and we lower - case them and remove sentences longer than 50 words , resulting in a parallel corpus of about 30M pairs of sentences .",0
+"To guarantee no exact correspondence between the source and target monolingual sets , we build monolingual corpora by selecting English sentences from 15M random pairs , and selecting the French sentences from the complementary set .",0
+"Sentences are encoded with byte - pair encoding , which has an English vocabulary of about 32000 tokens , and French vocabulary of about 33000 tokens .",0
+We report results on newstest2014 .,0
+WMT16 English - German,0
+"We follow the same procedure mentioned above to create monolingual training corpora for English - German translation , and we get two monolingual training data of 1.8 M sentences each .",0
+The two languages share a vocabulary of about 32000 tokens .,0
+We report results on newstest2016 .,0
+"LDC Chinese - English For Chinese - to - English translation , our training data consists of 1.6 M sentence pairs randomly extracted from LDC corpora",0
+6 .,0
+"Since the data set is not big enough , we just build the monolingual data set by randomly shuffling the Chinese and English sentences respectively .",0
+"In spite of the fact that some correspondence between examples in these two monolingual sets may exist , we never utilize this alignment information in our training procedure ( see Section 3.2 ) .",0
+Both the Chinese and English sentences are encoded with byte - pair encoding .,0
+"We get an English vocabulary of about 34000 tokens , and Chinese vocabulary of about 38000 tokens .",0
+The results are reported on N IST 02 .,0
+"Since the proposed system relies on the pretrained cross - lingual embeddings , we utilize the monolingual corpora described above to train the embeddings for each language independently by using word2 vec .",0
+"We then apply the public implementation 7 of the method proposed by to map these 6 LDC2002L27 , LDC2002T01 , LDC2002E18 , LDC2003E07 , LDC2004T08 , LDC2004E12 , LDC2005T10 7 https://github.com/artetxem/vecmap",0
+embeddings to a shared - latent space 8 .,0
+Model Hyper - parameters and Evaluation,0
+"Following the base model in , we set the dimension of word embedding as 512 , dropout rate as 0.1 and the head number as 8 .",1
+We use beam search with abeam size of 4 and length penalty ? = 0.6 .,1
+The model is implemented in TensorFlow and trained on up to four K80 GPUs synchronously in a multi - GPU setup on a single machine .,1
+"For model selection , we stop training when the model achieves no improvement for the tenth evaluation on the development set , which is comprised of 3000 source and target sentences extracted randomly from the monolingual training corpora .",0
+"Following ( Lample et al. , 2017 ) , we translate the source sentences to the target language , and then translate the resulting sentences back to the source language .",0
+The quality of the model is then evaluated by computing the BLEU score over the original inputs and their reconstructions via this two - step translation process .,0
+"The performance is finally averaged over two directions , i.e. , from source to target and from target to source .",0
+BLEU is utilized as the evaluation metric .,0
+"For Chinese - to - English , we apply the script mteval - v11 b. pl to evaluate the translation performance .",0
+"For English - German and English - French , we evaluate the translation performance with the script multi-belu.pl 9 .",0
+Baseline Systems,0
+Word - by - word translation ( WBW ) The first baseline we consider is a system that performs word - by - word translations using the inferred bilingual dictionary .,1
+"Specifically , it translates a sentence word - by - word , replacing each word with its nearest neighbor in the other language .",0
+Lample et al .,1
+The second baseline is a previous work that uses the same training and testing sets with this paper .,0
+"Their model belongs to the standard attention - based encoder - decoder framework , which implements the encoder using a bidirectional long short term memory network ( LSTM ) and implements the decoder using a sim - 8 The configuration we used to run these open - source toolkits can be found in appendix D 9 https://github.com/mosessmt/mosesdecoder/blob/617e8c8/scripts/generic/multibleu.perl;mteval-v11b.pl",0
+en - de de - en en - fr fr- en zh - en are copied directly from their paper .,0
+"We do not present the results of ( Artetxe et al. , 2017 b ) since we use different training sets .",0
+ple forward LSTM .,0
+They apply one single encoder and decoder for the source and target languages .,0
+Supervised training,1
+"We finally consider exactly the same model as ours , but trained using the standard cross - entropy loss on the original parallel sentences .",0
+This model can be viewed as an upper bound for the proposed unsupervised model .,0
+Results and Analysis,0
+Number of weight - sharing layers,0
+We firstly investigate how the number of weightsharing layers affects the translation performance .,0
+"In this experiment , we vary the number of weightsharing layers in the AEs from 0 to 4 .",0
+"Sharing one layer in AEs means sharing one layer for the encoders and in the meanwhile , sharing one layer for the decoders .",0
+"The BLEU scores of English - to - German , English - to - French and Chinese - to - English translation tasks are reported in figure",0
+2 . Each curve corresponds to a different translation task and the x - axis denotes the number of weight - sharing layers for the AEs .,0
+We find that the number of weight - sharing layers shows much effect on the translation performance .,0
+And the best translation performance is achieved when only one layer is shared in our system .,1
+"When all of the four layers are shared , i.e. , only one shared encoder is utilized , we get poor translation performance in all of the three translation tasks .",1
+This verifies our conjecture that the shared encoder is detrimental to the performance of unsupervised NMT especially for the translation tasks on distant language pairs .,0
+"More concretely , for the related language pair translation , i.e. , English - to - French , the encoder - shared model achieves - 0.53 BLEU points decline than the best model where only one layer is shared .",0
+"For the more distant language pair English - to - German , the encoder - shared model achieves more significant decline , i.e. , - 0.85 BLEU points decline .",0
+"And for the most distant language pair Chinese - to - English , the decline is as large as - 1.66 BLEU points .",0
+"We explain this as that the more distant the language pair is , the more different characteristics they have .",0
+And the shared encoder is weak in keeping the unique characteristic of each language .,0
+"Additionally , we also notice that using two completely independent encoders , i.e. , setting the number of weight - sharing layers as 0 , results in poor translation performance too .",0
+This confirms our intuition that the shared layers are vital to map the source and target latent representations to a shared - latent space .,0
+"In the rest of our experiments , we set the number of weightsharing layer as 1 . model only trained with monolingual data effectively learns to use the context information and the internal structure of each language .",0
+"Compared to the work of ( Lample et al. , 2017 ) , our model also achieves up to + 1.92 BLEU points improvement on English - to - French translation task .",0
+We believe that the unsupervised NMT is very promising .,0
+"However , there is still a large room for improvement compared to the supervised upper bound .",0
+The gap between the supervised and unsupervised model is as large as 12.3 - 25.5 BLEU points depending on the language pair and translation direction .,0
+Translation results,0
+Ablation study,0
+"To understand the importance of different components of the proposed system , we perform an ablation study by training multiple versions of our model with some missing components : the local GANs , the global GANs , the directional self - attention , the weight - sharing , the embeddingreinforced encoders , etc .",0
+Results are reported in table 3 .,0
+"We do not test the the importance of the auto - encoding , back - translation and the pre-trained embeddings because they have been widely tested in .",0
+shows that the best performance is obtained with the simultaneous use of all the tested elements .,0
+"The most critical component is the weight - sharing constraint , which is vital to map sentences of different languages to the shared - latent space .",1
+The embedding - reinforced encoder also brings some improvement on all of the translation tasks .,1
+"When we remove the directional self - attention , we getup to - 0.3 BLEU points decline .",1
+This indicates that it deserves more efforts to investigate the temporal order information in self - attention mechanism .,0
+The GANs also significantly improve the translation performance of our system .,1
+"Specifically , the global GANs achieve improvement up to + 0.78 BLEU points on English - to - French translation and the local GANs also obtain improvement up to + 0.57 BLEU points on English - to - French translation .",0
+This reveals that the proposed model benefits a lot from the crossdomain loss defined by GANs .,0
+Conclusion and Future work,0
+title,0
+Semantic Relation Classification via Bidirectional LSTM Networks with Entity - aware Attention using Latent Entity Typing,1
+abstract,0
+Classifying semantic relations between entity pairs in sentences is an important task in Natural Language Processing ( NLP ) .,1
+"Most previous models for relation classification rely on the high - level lexical and syntatic features obtained by NLP tools such as WordNet , dependency parser , part - ofspeech ( POS ) tagger , and named entity recognizers ( NER ) .",0
+"In addition , state - of - the - art neural models based on attention mechanisms do not fully utilize information of entity that maybe the most crucial features for relation classification .",0
+"To address these issues , we propose a novel end - to - end recurrent neural model which incorporates an entity - aware attention mechanism with a latent entity typing ( LET ) method .",0
+Our model not only utilizes entities and their latent types as features effectively but also is more interpretable by visualizing attention mechanisms applied to our model and results of LET .,0
+"Experimental results on the SemEval - 2010 Task 8 , one of the most popular relation classification task , demonstrate that our model outperforms existing state - of the - art models without any high - level features .",0
+Introduction,0
+"Classifying semantic relations between entity pairs in sentences plays a vital role in various NLP tasks , such as information extraction , question answering and knowledge base population .",0
+A task of relation classification is defined as predicting a semantic relationship between two tagged entities in a sentence .,1
+"For example , given a sentence with tagged entity pair , crash and attack , this sentence is classified into the re-lation Cause - Effect ( e1 , e2 ) 1 between the entity pair like .",0
+"A first entity is surrounded by e 1 and / e 1 , and a second entity is surrounded by e 2 and / e 2 .",0
+"Most previous relation classification models rely heavily on high - level lexical and syntactic features obtained from NLP tools such as WordNet , dependency parser , part - of - speech ( POS ) tagger , and named entity recognizer ( NER ) .",0
+The classification models relying on such features suffer from propagation of implicit error of the tools and they are computationally expensive .,0
+"Recently , many studies therefore propose end - toend neural models without the high - level features .",0
+"Among them , attention - based models , which focus to the most important semantic information in a sentence , show state - of - the - art results in a lot of NLP tasks .",0
+"Since these models are mainly proposed for solving translation and language modeling tasks , they could not fully utilize the information of tagged entities in relation classification task .",0
+"However , tagged entity pairs could be powerful hints for solving relation classification task .",0
+"For example , even if we do not consider other words except the crash and attack , we intuitively know that the entity pair has a relation Cause - Effect ( e1 , e2 ) 1 better than Component - Whole ( e1 , e2 ) 1 in To address these issues , We propose a novel endto - end recurrent neural model which incorporates an entity - aware attention mechanism with a latent entity typing ( LET ) .",0
+"To capture the context of sentences , We obtain word representations by self attention mechanisms and build the recurrent neural architecture with Bidirectional Long Short - Term Memory ( LSTM ) networks .",0
+Entity - aware attention focuses on the most important semantic information considering entity pairs with word positions relative to these pairs and latent types obtained by LET .,0
+The contributions of our work are summarized as follows :,0
+We propose an novel end - to - end recurrent neural model and an entity - aware attention mechanism with a LET which focuses to semantic information of entities and their latent types ; ( 2 ) Our model obtains 85.2 % F1 - score in SemEval- 2010 Task 8 and it outper - forms existing state - of - the - art models without any highlevel features ;,0
+"We show that our model is more interpretable since it 's decision making process could be visualized with self attention , entity - aware attention , and LET .",0
+Related Work,0
+Model,0
+"In this section , we introduce a novel recurrent neural model that incorporate an entity - aware attention mechanism with a LET method in detail .",1
+"As shown inure 2 , our model consists of four main components : Word Representation that maps each word in a sentence into vector representations ; ( 2 ) Self Attention that captures the meaning of the correlation between words based on multi-head attention ; ( 3 ) BLSTM which sequentially encodes the representations of self attention layer ; ( 4 ) Entity - aware Attention that calculates attention weights with respect to the entity pairs , word positions relative to these pairs , and their latent types obtained by LET .",1
+"After that , the features are averaged along the time steps to produce the sentencelevel features .",0
+Word Representation,0
+Let a input sentence is denoted by,0
+where n is the number of words .,0
+We transform each word into vector representations by looking up word embedding matrix W word ?,0
+"R dw |V | , where d w is the dimension of the vector and | V | is the size of vocabulary .",0
+"Then the word representations X = {x 1 , x 2 , ... , x n } are obtained by mapping w i , the i - th word , to a column vector xi ?",0
+R dw are fed into the next layer .,0
+Self Attention,0
+We can obtain the richer word representations by using self attentions .,0
+These word representations are considered the context based on correlation between words in a sentence .,0
+"The illustrates the results of the self attention in the sentence , "" the ?e1 ? pollution ? / e1 ?was caused by the ?e2 ? shipwrek ?/e2 ? "" , which is labeled Cause - Effect ( e1 , e2 ) .",0
+There are visualizations of the two heads in the multi-head attention applied for self attention .,0
+"The color density indicates the attention values , results of Equation 3.1 , which means how much an entity focuses on each word in a sentence .",0
+"In , the left represents the words that pollution , the first entity , focuses on and the right represents the words that shipwreck , the second entity , focuses on .",0
+"We can recognize that the entity pair is commonly concentrated on was , caused , and each other .",0
+"Actually , these words play the most important role in semantically predicting the Cause - Effect ( e1 , e2 ) , which is the relation class of this entity pair .",0
+"shows where the model focuses on the sentence to compute relations between entity pairs , which is the result of visualizing the alpha vectors in Equation 3.9 .",0
+"The important words in sentence are highlighted in yellow , which means that the more clearly the color is , the more important it is .",0
+"For example , in the first sentence , the inside is strongly highlighted , which is actually the best word representing the relation Component - whole ( e 1 , e2 ) between the given entity pair .",0
+"As another example , in the third sentence , the highlighted assess and using represent the relation , Instrument - Agency ( e2 , e1 ) between entity pair , analysts and frequency , well .",0
+"We can see that the using is more highlighted than the assess , because the former represents the relation better .",0
+"visualizes latent type representation t j? { 1 , 2 } in Equation 3.12",0
+"Since the dimensionality of representation vectors are too large to visualize , we applied the t - SNE , one of the most popular dimensionality reduction methods .",0
+"In , the red points represent latent type vectors c i?K and the rests are latent type representations t j , where the colors of points are determined by the closest of the latent type vectors in the vector space of the original dimensionality .",0
+The points are generally well divided and are almost uniformly distributed without being biased to one side .,0
+summarizes the results of extracting 50 entities in close order with each latent type vector .,0
+This allows us to roughly understand what latent types of entities are .,0
+We use a total of three types and find that similar characteristics appear in words grouped by together .,0
+"In the type 1 , the words are related to human 's jobs and foods .",0
+"The type2 has a lot of entities related to machines and engineering like engine , woofer , and motor .",0
+"Finally , in type3 , there are many words with bad meanings related associated with disasters and :",0
+Sets of Entities grouped by Latent Types drugs .,0
+"As a result , each type has a set of words with similar characteristics , which can prove that LET works effectively .",0
+Bidirectional LSTM,0
+Network,0
+"For sequentially encoding the output of self attention layer , we use a BLSTM that consists of two sub LSTM networks : a forward LSTM network which encodes the context of a input sentence and a backward LSTM network which encodes that one of the reverse sentence .",0
+"More formally , BLSTM works as follows :",0
+The representation vectors M obtained from self attention layer are forwarded into to the network step by step .,0
+"At the time step t , the hidden state",0
+Entity - aware Attention Mechanism,0
+Although many models with attention mechanism achieved state - of - the - art performance in many NLP tasks .,0
+"However , for the relation classification task , these models lack of prior knowledge forgiven entity pairs , which could be powerful hints for solving the task .",0
+Relation classification differs from sentence classification in that information about entities is given along with sentences .,0
+We propose a novel entity - aware attention mechanism for fully utilizing informative factors in given entity pairs .,0
+"Entity - aware attention utilizes the two additional features except H = {h 1 , h 2 , ... , h n } , ( 1 ) relative position features , ( 2 ) entity features with LET , and the final sentence representation z , result of the attention , is computed as follows :",0
+Relative Position Features,0
+"In relation classification , the position of each word relative to entities has been widely used for word representations .",0
+"Recently , position - aware attention is published as away to use the relative position features more effectively .",0
+"It is a variant of attention mechanisms , which use not only outputs of BLSTM but also the relative position features when calculating attention weights .",0
+We adopt this method with slightly modification as shown in Equation 3.8 .,0
+"In the equation , p e 1 i ?",0
+R dp and p e 2 i ?,0
+"R dp corresponds to the position of the i - th word relative to the first entity ( e 1 - th word ) and second entity ( e 2 - th word ) in a sentence respectively , where e j ?{ 1 , 2 } is a index of j-th entity .",0
+"Similar to word embeddings , the relative positions are converted to vector representations by looking up learnable embedding matrix W pos ?",0
+"R dp ( 2L?1 ) , where d p is the dimension of the relative position vectors and L is the maximum sentence length .",0
+"Finally , the representations of BLSTM layer take into account the context and the positional relationship with entities by concatenating hi , p e 1 i , and p e 2 i .",0
+The representation is linearly transformed by W H ?,0
+R da ( 2 d h + 2 dp ) as in the Equation 3.8 .,0
+Entity Features with Latent Type,0
+"Since entity pairs are powerful hints for solving relation classification task , we involve the entity pairs and their types in the attention mechanism to effectively train relations between entity pairs and other words in a sentence .",0
+We employ the two entity - aware features .,0
+"The first is the hidden states of BLSTM corresponding to positions of entity pairs , which are high - level features representing entities .",0
+These are denoted by h ei ?,0
+"R 2d h , where e i is index of i - th entity .",0
+"In addition , latent types of the entities obtained by LET , our proposed novel method , are the second one .",0
+"Using types as features can be a great way to improve performance , since the types of entities alone can be inferred the approximate relations .",0
+"Because the annotated types are not given , we use the latent type representations by applying the LET inspired by latent topic clustering , a method for predicting latent topic of texts in question answering task .",0
+The LET constructs the type representations by weighting K latent type vectors based on attention mechanisms .,0
+The mathematical formulation is the follows :,0
+where c i is the i - th latent type vector and K is the number of latent entity types .,0
+"As a result , entity features are constructed by concatenating the hidden states corresponding entity positions and types of entity pairs .",0
+"After linear transformation of the entity features , they add up with the representations of BLSTM layer as in Equation 3.8 , and the representation of sentence z ?",0
+R 2 d h is computed by Equations from 3.8 to 3.10 .,0
+Classification and Training,0
+The sentence representation obtained from the entity - aware attention z is fed into a fully connected softmax layer for classification .,0
+"It produces the conditional probability p ( y|S , ? ) overall relation types :",0
+where y is a target relation class and S is the input sentence .,0
+The ?,0
+is whole learnable parameters in the whole network including,0
+where | R| is the number of relation classes .,0
+"A loss function L is the cross entropy between the predictions and the ground truths , which is defined as :",0
+"where | D| is the size of training dataset and ( S ( i ) , y ( i ) ) is the i - th sample in the dataset .",0
+We minimize the loss L using AdaDelta optimizer to compute the parameters ? of our model .,0
+"To alleviate overfitting , we constrain the L2 regularization with the coefficient ?.",0
+"In addition , the dropout method is applied afterword embedding , LSTM network , and entity - aware attention to prevent co-adaptation of hidden units by randomly omitting feature detectors .",0
+Experiments,0
+Dataset and Evaluation Metrics,0
+"We evaluate our model on the SemEval - 2010 Task 8 dataset , which is an commonly used benchmark for relation classification and compare the results with the state - of - the - art models in this area .",0
+"The dataset contains 10 distinguished relations , Cause - Effect , Instrument - Agency , Product - Producer , Content - Container , Entity - Origin , Entity - Destination , Component - Whole , Member - Collection , Message - Topic , and Other .",0
+"The former 9 relations have two directions , whereas Other is not directional , so the total number of relations is 19 .",0
+"There are 10,717 annotated sentences which consist of 8,000 samples for training and 2,717 samples for testing .",0
+"We adopt the official evaluation metric of SemEval - 2010 Task 8 , which is based on the macro -averaged F1 - score ( excluding Other ) , and takes into consideration the directionality .",0
+Implementation Details,0
+We tune the hyperparameters for our model on the development set randomly sampled 800 sentences for validation .,0
+The best hyperparameters in our proposed model are shown in following .,0
+Hyperparameter,0
+"Description Value We use pre-trained weights of the publicly available Glo Ve model to initialize word embeddings in our model , and other weights are randomly initialized from zero-mean Gaussian distribution .",0
+compares our Entity - aware Attention LSTM model with state - of - theart models on this relation classification dataset .,0
+"We divide the models into three groups , Non-Neural Model , SDP - based Model , and End - to - End Model .",0
+"First , the SVM , Non-Neural Model , was top of the SemEval - 2010 task , during the official competition period .",0
+They used many handcraft feature and SVM classifier .,0
+"As a result , they achieved an F1-score of 82.2 % .",0
+"The second is SDP - based Model such as MVRNN , FCM , DepNN , de pLCNN + NS , SDP - LSTM , and DRNNs .",0
+The SDP is reasonable features for detecting semantic structure of sentences .,0
+"Actually , the SDP - based models show high performance , but SDP may not always be accurate and the parsing time is exponentially increased by long sentences .",0
+The last model is End - to - End Model automatically learned internal representations can occur between the original inputs and the final outputs in deep learning .,0
+"There are CNN - based models such as CNN , CR - CNN , and Attention - CNN and RNN - based models such as BLSTM , Attention - BLSTM , and Hierarchical - BLSTM ( Hier - BLSTM ) for this task .",0
+Experimental Results,0
+Model F1,0
+"Non Our proposed model achieves an F1-score of 85.2 % which outperforms all competing state - of - theart approaches except depLCNN + NS , DRNNs , and Attention - CNN .",1
+"However , they rely on high - level lexical features such as WordNet , dependency parse trees , POS tags , and NER tags from NLP tools .",0
+The experimental results show that the LET is effective for relation classification .,0
+The LET improve a performance of 0.5 % than the model not applied it .,0
+The model showed the best performance with three types .,0
+Visualization,0
+There are three different visualization to demonstrate that our model is more interpretable .,0
+"First , the visualization of self attention shows where each word focus on parts of a sentence .",0
+"By showing the words that the entity pair attends , we can find the words that well represent the relation between them .",0
+"Next , the entity - aware attention visualization shows where the model pays attend to a sentence .",0
+"This visualization result highlights important words in a sentence , which are usually important keywords for classification .",0
+"Finally , we visualize representation of type in LET by using t- SNE , a method for dimensionality reduction , and group the whole entities in the dataset by the its latent types .",0
+Entity - aware Attention,0
+Latent Entity Type,0
+Conclusion,0
+title,0
+Published as a conference paper at ICLR 2015 NEURAL MACHINE TRANSLATION BY JOINTLY LEARNING TO ALIGN AND TRANSLATE,1
+abstract,0
+Neural machine translation is a recently proposed approach to machine translation .,0
+"Unlike the traditional statistical machine translation , the neural machine translation aims at building a single neural network that can be jointly tuned to maximize the translation performance .",0
+The models proposed recently for neural machine translation often belong to a family of encoder - decoders and encode a source sentence into a fixed - length vector from which a decoder generates a translation .,0
+"In this paper , we conjecture that the use of a fixed - length vector is a bottleneck in improving the performance of this basic encoder - decoder architecture , and propose to extend this by allowing a model to automatically ( soft - ) search for parts of a source sentence that are relevant to predicting a target word , without having to form these parts as a hard segment explicitly .",1
+"With this new approach , we achieve a translation performance comparable to the existing state - of - the - art phrase - based system on the task of English - to - French translation .",0
+"Furthermore , qualitative analysis reveals that the ( soft - ) alignments found by the model agree well with our intuition .",0
+INTRODUCTION,0
+"Neural machine translation is a newly emerging approach to machine translation , recently proposed by , and .",1
+"Unlike the traditional phrase - based translation system ( see , e.g. , which consists of many small sub-components that are tuned separately , neural machine translation attempts to build and train a single , large neural network that reads a sentence and outputs a correct translation .",0
+"Most of the proposed neural machine translation models belong to a family of encoderdecoders , with an encoder and a decoder for each language , or involve a language - specific encoder applied to each sentence whose outputs are then compared ) .",0
+An encoder neural network reads and encodes a source sentence into a fixed - length vector .,0
+A decoder then outputs a translation from the encoded vector .,0
+"The whole encoder - decoder system , which consists of the encoder and the decoder fora language pair , is jointly trained to maximize the probability of a correct translation given a source sentence .",0
+A potential issue with this encoder - decoder approach is that a neural network needs to be able to compress all the necessary information of a source sentence into a fixed - length vector .,0
+"This may make it difficult for the neural network to cope with long sentences , especially those that are longer than the sentences in the training corpus .",0
+showed that indeed the performance of a basic encoder - decoder deteriorates rapidly as the length of an input sentence increases .,0
+"In order to address this issue , we introduce an extension to the encoder - decoder model which learns to align and translate jointly .",1
+"Each time the proposed model generates a word in a translation , it ( soft - ) searches fora set of positions in a source sentence where the most relevant information is concentrated .",1
+The model then predicts a target word based on the context vectors associated with these source positions and all the previous generated target words .,1
+The most important distinguishing feature of this approach from the basic encoder - decoder is that it does not attempt to encode a whole input sentence into a single fixed - length vector .,0
+"Instead , it encodes the input sentence into a sequence of vectors and chooses a subset of these vectors adaptively while decoding the translation .",0
+"This frees a neural translation model from having to squash all the information of a source sentence , regardless of its length , into a fixed - length vector .",0
+We show this allows a model to cope better with long sentences .,0
+"In this paper , we show that the proposed approach of jointly learning to align and translate achieves significantly improved translation performance over the basic encoder - decoder approach .",0
+"The improvement is more apparent with longer sentences , but can be observed with sentences of any length .",0
+"On the task of English - to - French translation , the proposed approach achieves , with a single model , a translation performance comparable , or close , to the conventional phrase - based system .",0
+"Furthermore , qualitative analysis reveals that the proposed model finds a linguistically plausible ( soft - ) alignment between a source sentence and the corresponding target sentence .",0
+BACKGROUND : NEURAL MACHINE TRANSLATION,0
+"From a probabilistic perspective , translation is equivalent to finding a target sentence y that maximizes the conditional probability of y given a source sentence x , i.e. , arg max y p ( y | x ) .",0
+"In neural machine translation , we fit a parameterized model to maximize the conditional probability of sentence pairs using a parallel training corpus .",0
+"Once the conditional distribution is learned by a translation model , given a source sentence a corresponding translation can be generated by searching for the sentence that maximizes the conditional probability .",0
+"Recently , a number of papers have proposed the use of neural networks to directly learn this conditional distribution ( see , e.g. , .",0
+"This neural machine translation approach typically consists of two components , the first of which encodes a source sentence x and the second decodes to a target sentence y .",0
+"For instance , two recurrent neural networks ( RNN ) were used by and to encode a variable - length source sentence into a fixed - length vector and to decode the vector into a variable - length target sentence .",0
+"Despite being a quite new approach , neural machine translation has already shown promising results .",0
+reported that the neural machine translation based on RNNs with long shortterm memory ( LSTM ) units achieves close to the state - of - the - art performance of the conventional phrase - based machine translation system on an English - to - French translation task .,0
+"1 Adding neural components to existing translation systems , for instance , to score the phrase pairs in the phrase table or to re-rank candidate translations , has allowed to surpass the previous state - of - the - art performance level .",0
+RNN ENCODER - DECODER,0
+"Here , we describe briefly the underlying framework , called RNN Encoder - Decoder , proposed by and upon which we build a novel architecture that learns to align and translate simultaneously .",0
+"In the Encoder - Decoder framework , an encoder reads the input sentence , a sequence of vectors x = ( x 1 , , x Tx ) , into a vector c. 2 The most common approach is to use an RNN such that",0
+"( 1 ) and c = q ( {h 1 , , h Tx } ) , where ht ?",0
+"Rn is a hidden state at time t , and c is a vector generated from the sequence of the hidden states .",0
+f and q are some nonlinear functions .,0
+"used an LSTM as f and q ( {h 1 , , h T }) = h T , for instance .",0
+"The decoder is often trained to predict the next wordy t given the context vector c and all the previously predicted words {y 1 , , y t ?1 }.",0
+"In other words , the decoder defines a probability over the translation y by decomposing the joint probability into the ordered conditionals :",0
+"where y = y 1 , , y Ty .",0
+"With an RNN , each conditional probability is modeled as",0
+"where g is a nonlinear , potentially multi-layered , function that outputs the probability of y t , and st is the hidden state of the RNN .",0
+It should be noted that other architectures such as a hybrid of an RNN and a de-convolutional neural network can be used .,0
+LEARNING TO ALIGN AND TRANSLATE,0
+"In this section , we propose a novel architecture for neural machine translation .",0
+The new architecture consists of a bidirectional RNN as an encoder ( Sec. 3.2 ) and a decoder that emulates searching through a source sentence during decoding a translation ( Sec. 3.1 ) .,0
+DECODER : GENERAL DESCRIPTION,0
+x 1 x 2 x 3 x T :,0
+"The graphical illustration of the proposed model trying to generate the t-th target wordy t given a source sentence ( x 1 , x 2 , . . . , x T ) .",0
+"Ina new model architecture , we define each conditional probability in Eq .",0
+( 2 ) as :,0
+"where s i is an RNN hidden state for time i , computed by",0
+It should be noted that unlike the existing encoder - decoder approach ( see Eq.,0
+"( 2 ) ) , here the probability is conditioned on a distinct context vector c i for each target wordy i .",0
+"The context vector c i depends on a sequence of annotations ( h 1 , , h Tx ) to which an encoder maps the input sentence .",0
+Each annotation hi contains information about the whole input sequence with a strong focus on the parts surrounding the i - th word of the input sequence .,0
+We explain in detail how the annotations are computed in the next section .,0
+"The context vector c i is , then , computed as a weighted sum of these annotations hi :",0
+The weight ?,0
+ij of each annotation h j is computed by,0
+"where e ij = a (s i?1 , h j ) is an alignment model which scores how well the inputs around position j and the output at position i match .",0
+"The score is based on the RNN hidden state s i ?1 ( just before emitting y i , Eq. ( 4 ) ) and the j - th annotation h j of the input sentence .",0
+We parametrize the alignment model a as a feedforward neural network which is jointly trained with all the other components of the proposed system .,0
+"Note that unlike in traditional machine translation , the alignment is not considered to be a latent variable .",0
+"Instead , the alignment model directly computes a soft alignment , which allows the gradient of the cost function to be backpropagated through .",0
+This gradient can be used to train the alignment model as well as the whole translation model jointly .,0
+"We can understand the approach of taking a weighted sum of all the annotations as computing an expected annotation , where the expectation is over possible alignments .",0
+Let ?,0
+"ij be a probability that the target wordy i is aligned to , or translated from , a source word x j .",0
+"Then , the i - th context vector c i is the expected annotation overall the annotations with probabilities ? ij .",0
+The probability ?,0
+"ij , or it s associated energy e ij , reflects the importance of the annotation h j with respect to the previous hidden state s i ?1 in deciding the next state s i and generating y i .",0
+"Intuitively , this implements a mechanism of attention in the decoder .",0
+The decoder decides parts of the source sentence to pay attention to .,0
+"By letting the decoder have an attention mechanism , we relieve the encoder from the burden of having to encode all information in the source sentence into a fixedlength vector .",0
+"With this new approach the information can be spread throughout the sequence of annotations , which can be selectively retrieved by the decoder accordingly .",0
+ENCODER : BIDIRECTIONAL RNN FOR ANNOTATING SEQUENCES,0
+"The usual RNN , described in Eq. ( 1 ) , reads an input sequence x in order starting from the first symbol x 1 to the last one x Tx .",0
+"However , in the proposed scheme , we would like the annotation of each word to summarize not only the preceding words , but also the following words .",0
+"Hence , we propose to use a bidirectional RNN ( BiRNN , , which has been successfully used recently in speech recognition ( see , e.g. , .",0
+A BiRNN consists of forward and backward RNN 's .,0
+The forward RNN ? ?,0
+f reads the input sequence as it is ordered ( from x 1 to x Tx ) and calculates a sequence of forward hidden states (,0
+The backward RNN,0
+? ?,0
+"f reads the sequence in the reverse order ( from x Tx to x 1 ) , resulting in a sequence of backward hidden states (",0
+We obtain an annotation for each word x j by concatenating the forward hidden state ? ?,0
+h j and the backward one,0
+"In this way , the annotation h j contains the summaries of both the preceding words and the following words .",0
+"Due to the tendency of RNNs to better represent recent inputs , the annotation h j will be focused on the words around x j .",0
+This sequence of annotations is used by the decoder and the alignment model later to compute the context vector ( Eqs. ( 5 ) - ) .,0
+See for the graphical illustration of the proposed model .,0
+EXPERIMENT SETTINGS,0
+We evaluate the proposed approach on the task of English - to - French translation .,0
+"We use the bilingual , parallel corpora provided by ACL WMT ' 14 .",0
+3,0
+"As a comparison , we also report the performance of an RNN Encoder - Decoder which was proposed recently by .",0
+We use the same training procedures and the same dataset for both models .,0
+4,0
+DATASET,0
+"WMT ' 14 contains the following English - French parallel corpora : Europarl ( 61 M words ) , news commentary ( 5.5 M ) , UN ( 421M ) and two crawled corpora of 90 M and 272.5 M words respectively , totaling 850M words .",0
+"Following the procedure described in , we reduce the size of the combined corpus to have 348M words using the data selection method by .",0
+"We do not use any monolingual data other than the mentioned parallel corpora , although it maybe possible to use a much larger monolingual corpus to pretrain an encoder .",0
+"We concatenate news - test - After a usual tokenization 6 , we use a shortlist of 30,000 most frequent words in each language to train our models .",0
+Any word not included in the shortlist is mapped to a special token ( [ UNK ] ) .,0
+"We do not apply any other special preprocessing , such as lowercasing or stemming , to the data .",0
+MODELS,0
+We train two types of models .,1
+"The first one is an RNN Encoder - Decoder ( RNNencdec , , and the other is the proposed model , to which we refer as RNNsearch .",1
+"We train each model twice : first with the sentences of length up to 30 words ( RNNencdec - 30 , RNNsearch - 30 ) and then with the sentences of length up to 50 word ( RNNencdec - 50 , RNNsearch - 50 ) .",1
+The encoder and decoder of the RNNencdec have 1000 hidden units each .,1
+The encoder of the RNNsearch consists of forward and backward recurrent neural networks ( RNN ) each having 1000 hidden units .,1
+It s decoder has 1000 hidden units .,1
+"In both cases , we use a multilayer network with a single maxout hidden layer to compute the conditional probability of each target word .",1
+We use a minibatch stochastic gradient descent ( SGD ) algorithm together with Adadelta to train each model .,0
+Each SGD update direction is computed using a minibatch of 80 sentences .,0
+We trained each model for approximately 5 days .,0
+"Once a model is trained , we use abeam search to find a translation that approximately maximizes the conditional probability ( see , e.g. , .",0
+used this approach to generate translations from their neural machine translation model .,0
+"For more details on the architectures of the models and training procedure used in the experiments , see Appendices A and B.",0
+RESULTS,0
+QUANTITATIVE RESULTS,0
+In : Four sample alignments found by RNNsearch - 50 .,0
+"The x - axis and y-axis of each plot correspond to the words in the source sentence ( English ) and the generated translation ( French ) , respectively .",0
+Each pixel shows the weight ?,0
+"ij of the annotation of the j - th source word for the i - th target word ( see Eq. ) , in grayscale ( 0 : black , 1 : white ) .",0
+( a ) an arbitrary sentence .,0
+( b - d ) three randomly selected samples among the sentences without any unknown words and of length between 10 and 20 words from the test set .,0
+One of the motivations behind the proposed approach was the use of a fixed - length context vector in the basic encoder - decoder approach .,0
+We conjectured that this limitation may make the basic encoder - decoder approach to underperform with long sentences .,0
+"In , we see that the performance of RNNencdec dramatically drops as the length of the sentences increases .",1
+"On the other hand , both RNNsearch - 30 and RNNsearch - 50 are more robust to the length of the sentences .",1
+"RNNsearch - 50 , especially , shows no performance deterioration even with sentences of length 50 or more .",1
+This superiority of the proposed model over the basic encoder - decoder is further confirmed by the fact that the RNNsearch - 30 even outperforms RNNencdec - 50 ( see ) .,1
+tokens when only the sentences having no unknown words were evaluated ( last column ) .,0
+QUALITATIVE ANALYSIS,0
+ALIGNMENT,0
+The proposed approach provides an intuitive way to inspect the ( soft - ) alignment between the words in a generated translation and those in a source sentence .,0
+This is done by visualizing the annotation weights ?,0
+"ij from Eq. , as in .",0
+Each row of a matrix in each plot indicates the weights associated with the annotations .,0
+From this we see which positions in the source sentence were considered more important when generating the target word .,0
+We can see from the alignments in that the alignment of words between English and French is largely monotonic .,0
+We see strong weights along the diagonal of each matrix .,0
+"However , we also observe a number of non-trivial , non-monotonic alignments .",0
+"Adjectives and nouns are typically ordered differently between French and English , and we see an example in The strength of the soft - alignment , opposed to a hard - alignment , is evident , for instance , from ].",0
+We observe similar behaviors in all the presented cases in .,0
+"An additional benefit of the soft alignment is that it naturally deals with source and target phrases of different lengths , without requiring a counter - intuitive way of mapping some words to or from nowhere ( [ NULL ] ) ( see , e.g. , Chapters 4 and 5 of .",0
+LONG SENTENCES,0
+As clearly visible from the proposed model ( RNNsearch ) is much better than the conventional model ( RNNencdec ) at translating long sentences .,0
+"This is likely due to the fact that the RNNsearch does not require encoding along sentence into a fixed - length vector perfectly , but only accurately encoding the parts of the input sentence that surround a particular word .",0
+"As an example , consider this source sentence from the test set :",0
+"An admitting privilege is the right of a doctor to admit a patient to a hospital or a medical centre to carryout a diagnosis or a procedure , based on his status as a healthcare worker at a hospital .",0
+The RNNencdec - 50 translated this sentence into :,0
+Un privilge d'admission est le droit d'un mdecin de reconnatre un patient l'hpital ou un centre mdical d'un diagnostic ou de prendre un diagnostic en fonction de sontat de sant .,0
+"On the other hand , the RNNsearch - 50 generated the following correct translation , preserving the whole meaning of the input sentence without omitting any details :",0
+"Un privilge d'admission est le droit d'un mdecin d'admettre un patient un hpital ou un centre mdical pour effectuer un diagnostic ou une procdure , selon son statut de travailleur des soins de sant l'hpital .",0
+Let us consider another sentence from the test set :,0
+"This kind of experience is part of Disney 's efforts to "" extend the lifetime of its series and build new relationships with audiences via digital platforms that are becoming evermore important , "" he added .",0
+The translation by the RNNencdec - 50 is,0
+"Ce type d'exprience fait partie des initiatives du Disney pour "" prolonger la dure de vie de ses nouvelles et de dvelopper des liens avec les lecteurs numriques qui deviennent plus complexes .",0
+"As with the previous example , the RNNencdec began deviating from the actual meaning of the source sentence after generating approximately 30 words ( see the underlined phrase ) .",0
+"After that point , the quality of the translation deteriorates , with basic mistakes such as the lack of a closing quotation mark .",0
+"Again , the RNNsearch - 50 was able to translate this long sentence correctly :",0
+"Ce genre d'exprience fait partie des efforts de Disney pour "" prolonger la dure de vie de ses sries et crer de nouvelles relations avec des publics via des plateformes numriques de plus en plus importantes "" , a-t - il ajout .",0
+"In conjunction with the quantitative results presented already , these qualitative observations confirm our hypotheses that the RNNsearch architecture enables far more reliable translation of long sentences than the standard RNNencdec model .",0
+"In Appendix C , we provide a few more sample translations of long source sentences generated by the RNNencdec - 50 , RNNsearch - 50 and Google Translate along with the reference translations .",0
+6 RELATED WORK,0
+LEARNING TO ALIGN,0
+A similar approach of aligning an output symbol with an input symbol was proposed recently by in the context of handwriting synthesis .,0
+Handwriting synthesis is a task where the model is asked to generate handwriting of a given sequence of characters .,0
+"In his work , he used a mixture of Gaussian kernels to compute the weights of the annotations , where the location , width and mixture coefficient of each kernel was predicted from an alignment model .",0
+"More specifically , his alignment was restricted to predict the location such that the location increases monotonically .",0
+"The main difference from our approach is that , in , the modes of the weights of the annotations only move in one direction .",0
+"In the context of machine translation , this is a severe limitation , as ( long - distance ) reordering is often needed to generate a grammatically correct translation ( for instance , English - to - German ) .",0
+"Our approach , on the other hand , requires computing the annotation weight of every word in the source sentence for each word in the translation .",0
+This drawback is not severe with the task of translation in which most of input and output sentences are only 15 - 40 words .,0
+"However , this may limit the applicability of the proposed scheme to other tasks .",0
+NEURAL NETWORKS FOR MACHINE TRANSLATION,0
+"Since introduced a neural probabilistic language model which uses a neural network to model the conditional probability of a word given a fixed number of the preceding words , neural networks have widely been used in machine translation .",0
+"However , the role of neural networks has been largely limited to simply providing a single feature to an existing statistical machine translation system or to re-rank a list of candidate translations provided by an existing system .",0
+"For instance , proposed using a feedforward neural network to compute the score of a pair of source and target phrases and to use the score as an additional feature in the phrase - based statistical machine translation system .",0
+"More recently , and reported the successful use of the neural networks as a sub-component of the existing translation system .",0
+"Traditionally , a neural network trained as a target - side language model has been used to rescore or rerank a list of candidate translations ( see , e.g. , .",0
+"Although the above approaches were shown to improve the translation performance over the stateof - the - art machine translation systems , we are more interested in a more ambitious objective of designing a completely new translation system based on neural networks .",0
+The neural machine translation approach we consider in this paper is therefore a radical departure from these earlier works .,0
+"Rather than using a neural network as apart of the existing system , our model works on its own and generates a translation from a source sentence directly .",0
+CONCLUSION,0
+A MODEL ARCHITECTURE,0
+A.1 ARCHITECTURAL CHOICES,0
+"The proposed scheme in Section 3 is a general framework where one can freely define , for instance , the activation functions f of recurrent neural networks ( RNN ) and the alignment model a .",0
+"Here , we describe the choices we made for the experiments in this paper .",0
+A.1.1 RECURRENT NEURAL NETWORK,0
+"For the activation function f of an RNN , we use the gated hidden unit recently proposed by .",0
+The gated hidden unit is an alternative to the conventional simple units such as an element - wise tanh .,0
+"This gated unit is similar to along short - term memory ( LSTM ) unit proposed earlier by , sharing with it the ability to better model and learn long - term dependencies .",0
+This is made possible by having computation paths in the unfolded RNN for which the product of derivatives is close to 1 .,0
+These paths allow gradients to flow backward easily without suffering too much from the vanishing effect .,0
+"It is therefore possible to use LSTM units instead of the gated hidden unit described here , as was done in a similar context by .",0
+The new state s i of the RNN employing n gated hidden units 8 is computed by,0
+"where is an element - wise multiplication , and z i is the output of the update gates ( see below ) .",0
+The proposed updated states i is computed b ?,0
+where e ( y,0
+i?1 ) ?,0
+"R m is an m-dimensional embedding of a wordy i ?1 , and r i is the output of the reset gates ( see below ) .",0
+"When y i is represented as a 1 - of - K vector , e ( y i ) is simply a column of an embedding matrix E ?",0
+R mK .,0
+"Whenever possible , we omit bias terms to make the equations less cluttered .",0
+"The update gates z i allow each hidden unit to maintain its previous activation , and the reset gates r i control how much and what information from the previous state should be reset .",0
+We compute them by,0
+where ? ( ) is a logistic sigmoid function .,0
+"At each step of the decoder , we compute the output probability ( Eq. ( 4 ) ) as a multi -layered function .",0
+We use a single hidden layer of maxout units and normalize the output probabilities ( one for each word ) with a softmax function ( see Eq. ) .,0
+A.1.2 ALIGNMENT MODEL,0
+The alignment model should be designed considering that the model needs to be evaluated T x Ty times for each sentence pair of lengths T x and Ty .,0
+"In order to reduce computation , we use a singlelayer multilayer perceptron such that",0
+where W a ?,0
+"R nn , U a ?",0
+R n 2n and v a ?,0
+Rn are the weight matrices .,0
+Since,0
+"U ah j does not depend on i , we can pre-compute it in advance to minimize the computational cost .",0
+A.2 DETAILED DESCRIPTION OF THE MODEL,0
+A.2.1 ENCODER,0
+"In this section , we describe in detail the architecture of the proposed model ( RNNsearch ) used in the experiments ( see .",0
+"From hereon , we omit all bias terms in order to increase readability .",0
+The model takes a source sentence of 1 - of - K coded word vectors as input,0
+"and outputs a translated sentence of 1 - of - K coded word vectors y = ( y 1 , . . . , y Ty ) , y i ? R Ky ,",0
+"where K x and Ky are the vocabulary sizes of source and target languages , respectively .",0
+T x and Ty respectively denote the lengths of source and target sentences .,0
+"First , the forward states of the bidirectional recurrent neural network ( BiRNN ) are computed :",0
+are weight matrices .,0
+"m and n are the word embedding dimensionality and the number of hidden units , respectively . ? ( ) is as usual a logistic sigmoid function .",0
+"The backward states ( ? ? h 1 , , ? ? h Tx ) are computed similarly .",0
+"We share the word embedding matrix E between the forward and backward RNNs , unlike the weight matrices .",0
+"We concatenate the forward and backward states to to obtain the annotations ( h 1 , h 2 , , h Tx ) , where",0
+A.,0
+DECODER,0
+The hidden state s i of the decoder given the annotations from the encoder is computed by,0
+E is the word embedding matrix for the target language .,0
+"W , W z , W r ?",0
+"R nm , U , U z , Ur ? R nn , and C , C z , Cr ?",0
+R n 2n are weights .,0
+"Again , m and n are the word embedding dimensionality and the number of hidden units , respectively .",0
+The initial hidden state s 0 is computed by,0
+The context vector c i are recomputed at each step by the alignment model : :,0
+Learning statistics and relevant information .,0
+Each update corresponds to updating the parameters once using a single minibatch .,0
+One epoch is one pass through the training set .,0
+NLL is the average conditional log-probabilities of the sentences in either the training set or the development set .,0
+Note that the lengths of the sentences differ .,0
+where,0
+and h j is the j - th annotation in the source sentence ( see Eq. ) .,0
+v a ?,0
+"Rn , W a ?",0
+Rn n and U a ?,0
+Rn 2n are weight matrices .,0
+Note that the model becomes RNN Encoder - Decoder,0
+"With the decoder state s i ?1 , the context c i and the last generated wordy i ? 1 , we define the probability of a target wordy i as",0
+"where ti = max t i ,2 j?1 ,t i , 2 j j=1 , ... , l andt i , k is the k - th element of a vectort i which is computed b ?",0
+and Co ?,0
+R 2 l 2n are weight matrices .,0
+This can be understood as having a deep output with a single maxout hidden layer .,0
+A.2.3 MODEL SIZE,0
+"For all the models used in this paper , the size of a hidden layer n is 1000 , the word embedding dimensionality m is 620 and the size of the maxout hidden layer in the deep output l is 500 .",0
+The number of hidden units in the alignment model n is 1000 .,0
+and ? ?,0
+Ur as random orthogonal matrices .,0
+"For W a and U a , we initialized them by sampling each element from the Gaussian distribution of mean 0 and variance 0.001 2 .",0
+All the elements of Va and all the bias vectors were initialized to zero .,0
+Any other weight matrix was initialized by sampling from the Gaussian distribution of mean 0 and variance 0.01 2 .,0
+B.2 TRAINING,0
+We used the stochastic gradient descent ( SGD ) algorithm .,0
+Adadelta was used to automatically adapt the learning rate of each parameter ( = 10 ?6 and ? = 0.95 ) .,0
+"We explicitly normalized the L 2 - norm of the gradient of the cost function each time to beat most a predefined threshold of 1 , when the norm was larger than the threshold .",0
+Each SGD update direction was computed with a minibatch of 80 sentences .,0
+At each update our implementation requires time proportional to the length of the longest sentence in a minibatch .,0
+"Hence , to minimize the waste of computation , before every 20 - th update , we retrieved 1600 sentence pairs , sorted them according to the lengths and split them into 20 minibatches .",0
+The training data was shuffled once before training and was traversed sequentially in this manner .,0
+In Tables 2 we present the statistics related to training all the models used in the experiments .,0
+C TRANSLATIONS OF LONG SENTENCES,0
+Source,0
+"An admitting privilege is the right of a doctor to admit a patient to a hospital or a medical centre to carryout a diagnosis or a procedure , based on his status as a healthcare worker at a hospital .",0
+Reference,0
+"Le privilge d'admission est le droit d'un mdecin , en vertu de son statut de membre soignant d'un hpital , d'admettre un patient dans un hpital ou un centre mdical afin d 'y dlivrer un diagnostic ou un traitement .",0
+RNNenc - 50,0
+"Ce type d'exprience fait partie des initiatives du Disney pour "" prolonger la dure de vie de ses nouvelles et de dvelopper des liens avec les lecteurs numriques qui deviennent plus complexes .",0
+RNNsearch - 50,0
+"Ce genre d'exprience fait partie des efforts de Disney pour "" prolonger la dure de vie de ses sries et crer de nouvelles relations avec des publics via des plateformes numriques de plus en plus importantes "" , a-t - il ajout .",0
+Google Translate,0
+"Ce genre d'exprience fait partie des efforts de Disney "" tendre la dure de vie de sa srie et construire de nouvelles relations avec le public par le biais des plates - formes numriques qui deviennent de plus en plus important "" , at - il ajout .",0
+Source,0
+"Ina press conference on Thursday , Mr Blair stated that there was nothing in this video that might constitute a "" reasonable motive "" that could lead to criminal charges being brought against the mayor .",0
+Reference,0
+"En confrence de presse , jeudi , M. Blair a affirm qu'il n'y avait rien dans cette vido qui puisse constituer des "" motifs raisonnables "" pouvant mener au dpt d'une accusation criminelle contre le maire .",0
+RNNenc - 50,0
+"Lors de la confrence de presse de jeudi , M. Blair a dit qu'il n'y avait rien dans cette vido qui pourrait constituer une "" motivation raisonnable "" pouvant entraner des accusations criminelles portes contre le maire .",0
+RNNsearch - 50,0
+"Lors d'une confrence de presse jeudi , M. Blair a dclar qu'il n'y avait rien dans cette vido qui pourrait constituer un "" motif raisonnable "" qui pourrait conduire des accusations criminelles contre le maire .",0
+Google Translate,0
+"Lors d'une confrence de presse jeudi , M. Blair a dclar qu'il n'y avait rien dans cette vido qui pourrait constituer un "" motif raisonnable "" qui pourrait mener des accusations criminelles portes contre le maire . :",0
+The translations generated by RNNenc - 50 and RNNsearch - 50 from long source sentences ( 30 words or more ) selected from the test set .,0
+"For each source sentence , we also show the goldstandard translation .",0
+The translations by Google Translate were made on 27 August 2014 .,0
+Reference,0
+"Ce type d'exprience entre dans le cadre des efforts de Disney pour "" tendre la dure de vie de ses sries et construire de nouvelles relations avec son public grce des plateformes numriques qui so nt de plus en plus importantes "" , a-t - il ajout .",0
